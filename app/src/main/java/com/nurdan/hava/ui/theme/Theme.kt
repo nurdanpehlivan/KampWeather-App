@@ -1,65 +1,49 @@
 package com.nurdan.hava.ui.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 
-/** Gündüz: krem kâğıt zemin, mürekkep yazı, mercan vurgu. */
-private val DayColors = lightColorScheme(
-    primary = Coral,
-    onPrimary = Paper,
-    primaryContainer = CoralMist,
-    onPrimaryContainer = CoralDeep,
-    secondary = Indigo,
-    onSecondary = Paper,
-    secondaryContainer = IndigoMist,
-    onSecondaryContainer = Indigo,
-    background = Paper,
-    onBackground = Ink,
-    surface = Paper,
-    onSurface = Ink,
-    surfaceVariant = PaperDeep,
-    onSurfaceVariant = InkSoft,
-    surfaceContainer = PaperDeep,
-    outline = PaperLine,
-    outlineVariant = PaperLine,
-    error = Brick
-)
-
-/** Gece: lacivert gökyüzü, ay ışığı yazı, yumuşak mercan vurgu. */
-private val NightColors = darkColorScheme(
-    primary = CoralLight,
-    onPrimary = CoralDeep,
-    primaryContainer = CoralNight,
-    onPrimaryContainer = CoralMist,
-    secondary = IndigoLight,
-    onSecondary = Night,
-    secondaryContainer = NightLine,
-    onSecondaryContainer = IndigoMist,
-    background = Night,
-    onBackground = Moonlight,
-    surface = Night,
-    onSurface = Moonlight,
-    surfaceVariant = NightRaised,
-    onSurfaceVariant = MoonlightSoft,
-    surfaceContainer = NightSurface,
-    outline = NightLine,
-    outlineVariant = NightLine,
-    error = Blush
+/**
+ * Tek bir renk şeması: gündüz ya da gece ayrımını sistem ayarı değil, gökyüzünün
+ * kendisi yapar. Material rolleri cam kartlara göre ayarlanmıştır:
+ * `surfaceVariant` cam kart, `onSurface` beyaz yazı, `primary` güneş sarısı vurgu.
+ */
+private val SkyColors = darkColorScheme(
+    primary = SunYellow,
+    onPrimary = DeepSky,
+    primaryContainer = GlassStrong,
+    onPrimaryContainer = Cloud,
+    secondary = RainBlue,
+    onSecondary = DeepSky,
+    secondaryContainer = GlassStrong,
+    onSecondaryContainer = Cloud,
+    background = NightFallback,
+    onBackground = Cloud,
+    surface = NightFallback,
+    onSurface = Cloud,
+    surfaceVariant = Glass,
+    onSurfaceVariant = CloudSoft,
+    surfaceContainer = Glass,
+    outline = GlassLine,
+    outlineVariant = GlassLine,
+    error = Alert
 )
 
 /**
- * Uygulamanın teması. Varsayılan olarak telefonun sistem ayarını izler; koyu
- * modda otomatik olarak "gece" paletine geçer.
+ * Uygulamanın teması. `darkTheme` parametresi önizlemeler için duruyor; şema
+ * gökyüzüne göre çalıştığı için iki durumda da aynıdır.
  */
 @Composable
-fun HavaTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
+fun HavaTheme(@Suppress("UNUSED_PARAMETER") darkTheme: Boolean = true, content: @Composable () -> Unit) {
     MaterialTheme(
-        colorScheme = if (darkTheme) NightColors else DayColors,
+        colorScheme = SkyColors,
         typography = HavaTypography,
-        shapes = HavaShapes,
-        content = content
-    )
+        shapes = HavaShapes
+    ) {
+        // Gökyüzü zemininde Scaffold saydamdır; varsayılan yazı rengi siyaha düşmesin.
+        CompositionLocalProvider(LocalContentColor provides Cloud, content = content)
+    }
 }

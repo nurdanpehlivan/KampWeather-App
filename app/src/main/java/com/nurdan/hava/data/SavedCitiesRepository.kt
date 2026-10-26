@@ -28,7 +28,12 @@ interface SavedCitiesRepository {
 
     suspend fun setLastViewed(city: City)
 
-    /** Widget'ın göstereceği şehir: ilk favori, yoksa en son bakılan şehir. */
+    /** "Konumum" ile bulunan şehir; ana ekranda ilk kart. */
+    val locationCity: Flow<City?>
+
+    suspend fun setLocationCity(city: City)
+
+    /** Widget'ın göstereceği şehir: konum şehri, yoksa ilk favori, yoksa en son bakılan şehir. */
     suspend fun widgetCity(): City?
 }
 
@@ -69,9 +74,18 @@ class DataStoreSavedCitiesRepository(
         onChanged()
     }
 
+    override val locationCity: Flow<City?> = store.data.map { prefs -> prefs[LOCATION]?.let(::decodeCity) }
+
+    override suspend fun setLocationCity(city: City) {
+        store.edit { it[LOCATION] = gson.toJson(city) }
+        onChanged()
+    }
+
     override suspend fun widgetCity(): City? {
         val prefs = store.data.first()
-        return decodeList(prefs[FAVORITES]).firstOrNull() ?: prefs[LAST_VIEWED]?.let(::decodeCity)
+        return prefs[LOCATION]?.let(::decodeCity)
+            ?: decodeList(prefs[FAVORITES]).firstOrNull()
+            ?: prefs[LAST_VIEWED]?.let(::decodeCity)
     }
 
     /** Bozuk ya da eski biçimli veri uygulamayı çökertmez; boş liste sayılır. */
@@ -90,5 +104,6 @@ class DataStoreSavedCitiesRepository(
     private companion object {
         val FAVORITES = stringPreferencesKey("favorites")
         val LAST_VIEWED = stringPreferencesKey("last_viewed")
+        val LOCATION = stringPreferencesKey("location_city")
     }
 }

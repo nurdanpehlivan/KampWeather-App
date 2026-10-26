@@ -8,8 +8,11 @@ import com.nurdan.hava.AppGraph
 import com.nurdan.hava.data.CityRepository
 import com.nurdan.hava.data.LocationRepository
 import com.nurdan.hava.data.OpenMeteoCityRepository
+import com.nurdan.hava.data.OpenMeteoWeatherRepository
 import com.nurdan.hava.data.SavedCitiesRepository
+import com.nurdan.hava.data.WeatherRepository
 import com.nurdan.hava.model.City
+import com.nurdan.hava.model.Forecast
 import com.nurdan.hava.ui.LoadState
 import java.io.IOException
 import kotlinx.coroutines.FlowPreview
@@ -18,44 +21,68 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
 
 /**
- * Şehir ekranının beyni: arama metni, sonuç durumu ve seçili şehir burada yaşar.
+ * Ana ekranda bir şehir kartı: şehir, konumdan mı geldiği ve anlık havası.
+ */
+data class CityWeather(val city: City, val isMyLocation: Boolean, val weather: LoadState<Forecast>)
+
+/**
+ * Ana ekranın beyni.
  *
- * ViewModel ekran döndürülünce de hayatta kalır; arama metni, sonuçlar ve vurgulanan
- * şehir kaybolmaz.
+ * İki modu vardır:
+ * - Arama kutusu boşken **Şehirlerim**: konum şehri + favoriler, her biri anlık havasıyla.
+ * - Bir şey yazılınca **arama**: yazmayı [TYPING_DEBOUNCE_MS] kadar bırakınca arama
+ *   kendiliğinden başlar; her harfte istek atılmaz.
  *
- * Yazdıkça arama: kullanıcı yazmayı [TYPING_DEBOUNCE_MS] kadar bıraktığında arama kendiliğinden
- * başlar. Her harfte istek atılmaz; "İst" → "İsta" → "İstan" yazarken tek istek gider.
+ * ViewModel ekran döndürülünce de yaşar; arama, sonuçlar ve seçili şehir kaybolmaz.
  */
 @OptIn(FlowPreview::class)
 class CityViewModel(
     private val repository: CityRepository = OpenMeteoCityRepository(),
     private val savedCities: SavedCitiesRepository = AppGraph.savedCities,
-    private val locationRepository: LocationRepository = AppGraph.location
+    private val locationRepository: LocationRepository = AppGraph.location,
+    private val weatherRepository: WeatherRepository = OpenMeteoWeatherRepository()
 ) : ViewModel() {
 
-    private val _query = MutableStateFlow(INITIAL_QUERY)
+    private val _query = MutableStateFlow("")
     val query: StateFlow<String> = _query.asStateFlow()
 
-    private val _uiState = MutableStateFlow<LoadState<List<City>>>(LoadState.Loading)
+    /** Arama sonucunun dört durumu. Henüz arama yapılmadıysa Empty. */
+    private val _uiState = MutableStateFlow<LoadState<List<City>>>(LoadState.Empty)
     val uiState: StateFlow<LoadState<List<City>>> = _uiState.asStateFlow()
 
-    /** En son dokunulan şehir; listede vurgulanır. */
+    /** En son dokunulan şehir; arama sonuçlarında vurgulanır. */
     private val _selectedCityId = MutableStateFlow<Long?>(null)
     val selectedCityId: StateFlow<Long?> = _selectedCityId.asStateFlow()
 
     /** Favori şehirler; uygulama kapansa da DataStore'da saklanır. */
     val favorites: StateFlow<List<City>> = savedCities.favorites
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /** Şehir kimliği → o şehrin anlık havası. Her şehir için bir kez yüklenir. */
+    private val weatherById = MutableStateFlow<Map<Long, LoadState<Forecast>>>(emptyMap())
+
+    /** Ana ekran kartları: önce konum şehri, ardından favoriler (konumla aynı olan tekrar edilmez). */
+    val myCities: StateFlow<List<CityWeather>> = combine(
+        savedCities.locationCity,
+        savedCities.favorites,
+        weatherById
+    ) { location, favorites, weather ->
+        val cards = listOfNotNull(location?.let { it to true }) +
+            favorites.filterNot { it.id == location?.id }.map { it to false }
+        cards.map { (city, isMine) -> CityWeather(city, isMine, weather[city.id] ?: LoadState.Loading) }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private val _location = MutableStateFlow<LocationState>(LocationState.Idle)
 
@@ -65,13 +92,15 @@ class CityViewModel(
     private var searchJob: Job? = null
 
     init {
-        search()
-        // İlk değer (açılış araması) zaten yapıldı; yalnızca kullanıcının yazdıklarını dinle.
         _query
             .drop(1)
             .debounce(TYPING_DEBOUNCE_MS)
             .filter { it.trim().length >= MIN_QUERY_LENGTH }
             .onEach { search() }
+            .launchIn(viewModelScope)
+        // Listeye yeni bir şehir girince havasını getir.
+        myCities
+            .onEach { cards -> cards.filter { it.city.id !in weatherById.value }.forEach { loadWeather(it.city) } }
             .launchIn(viewModelScope)
     }
 
@@ -79,7 +108,7 @@ class CityViewModel(
         _query.value = newQuery
     }
 
-    /** Karta dokunulunca: şehri vurgula ve Logcat'e yaz (filtre: `CityCard`). */
+    /** Karta dokunulunca: şehri vurgula, son bakılan olarak kaydet ve Logcat'e yaz (filtre: `CityCard`). */
     fun onCitySelected(city: City) {
         Log.d(CLICK_TAG, "Tıklandı: ${city.name}")
         _selectedCityId.value = city.id
@@ -90,12 +119,19 @@ class CityViewModel(
         viewModelScope.launch { savedCities.toggleFavorite(city) }
     }
 
-    /** Konum izni verildikten sonra çağrılır. */
+    /** Aşağı çekip yenileme: bütün kartların havası yeniden alınır. */
+    fun onRefreshMyCities() {
+        myCities.value.forEach { loadWeather(it.city) }
+    }
+
+    /** Konum izni verildikten sonra çağrılır. Bulunan şehir ana ekranın ilk kartı olur. */
     fun onLocate() {
         if (_location.value == LocationState.Searching) return
         viewModelScope.launch {
             _location.value = LocationState.Searching
-            _location.value = locationRepository.currentCity()?.let { LocationState.Found(it) } ?: LocationState.Failed
+            val city = locationRepository.currentCity()
+            if (city != null) savedCities.setLocationCity(city)
+            _location.value = city?.let { LocationState.Found(it) } ?: LocationState.Failed
         }
     }
 
@@ -114,8 +150,9 @@ class CityViewModel(
         val text = _query.value.trim()
         if (text.isEmpty()) return
         searchJob?.cancel()
+        // Loading hemen gösterilir; iskelet kartlar istek beklenmeden ekrana gelir.
+        _uiState.value = LoadState.Loading
         searchJob = viewModelScope.launch {
-            _uiState.value = LoadState.Loading
             _uiState.value = try {
                 val cities = repository.search(text)
                 if (cities.isEmpty()) LoadState.Empty else LoadState.Success(cities)
@@ -132,12 +169,31 @@ class CityViewModel(
         }
     }
 
+    private fun loadWeather(city: City) {
+        weatherById.update { it + (city.id to LoadState.Loading) }
+        viewModelScope.launch {
+            val state = try {
+                LoadState.Success(weatherRepository.getForecast(city.latitude, city.longitude))
+            } catch (e: IOException) {
+                Log.e(TAG, "Kart havası alınamadı: ${city.name}", e)
+                LoadState.Error("Bağlantı yok")
+            } catch (e: HttpException) {
+                Log.e(TAG, "Kart havası alınamadı: ${city.name}", e)
+                LoadState.Error("Sunucu yanıt vermiyor")
+            } catch (e: JsonSyntaxException) {
+                Log.e(TAG, "Kart havası alınamadı: ${city.name}", e)
+                LoadState.Error("Veri okunamadı")
+            } catch (e: IllegalStateException) {
+                Log.e(TAG, "Kart havası alınamadı: ${city.name}", e)
+                LoadState.Error("Veri eksik")
+            }
+            weatherById.update { it + (city.id to state) }
+        }
+    }
+
     internal companion object {
         private const val TAG = "CityViewModel"
         private const val CLICK_TAG = "CityCard"
-
-        /** Uygulama ilk açıldığında aranan şehir. */
-        const val INITIAL_QUERY = "İstanbul"
 
         /** Yazmayı bıraktıktan sonra aramanın başlaması için beklenen süre. */
         const val TYPING_DEBOUNCE_MS = 450L

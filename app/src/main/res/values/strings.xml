@@ -3,7 +3,7 @@
     <string name="app_name">Hava</string>
 
     <!-- Şehir ekranı -->
-    <string name="search_hint">Bir şehir yaz…</string>
+    <string name="search_hint">Şehir ara…</string>
     <string name="action_clear">Temizle</string>
     <string name="action_retry">Tekrar dene</string>
     <string name="city_empty_title">Şehir bulunamadı</string>
@@ -34,6 +34,11 @@
     <string name="location_denied">Konumunu kullanmak için izin gerekli.</string>
     <string name="action_favorite_add">Favorilere ekle</string>
     <string name="action_favorite_remove">Favorilerden çıkar</string>
+    <string name="use_my_location">Konumumu kullan</string>
+    <string name="location_prompt_title">Bulunduğun yerin havası</string>
+    <string name="location_prompt_body">Konumuna izin ver, şehrin her açılışta en üstte dursun.</string>
+    <string name="my_cities_empty_hint">Şehir eklemek için yukarıdan ara ve kalbe dokun.</string>
+    <string name="my_cities_swipe_hint">Bir şehri kaldırmak için kartı sola kaydır. Yenilemek için aşağı çek.</string>
 
     <!-- Widget -->
     <string name="widget_label">Hava</string>

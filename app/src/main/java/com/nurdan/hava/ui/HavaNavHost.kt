@@ -56,6 +56,22 @@ fun HavaNavHost(modifier: Modifier = Modifier, navController: NavHostController 
                 navArgument(ForecastViewModel.ARG_LONGITUDE) {
                     type = NavType.StringType
                     defaultValue = "0"
+                },
+                navArgument(ForecastViewModel.ARG_ID) {
+                    type = NavType.StringType
+                    defaultValue = "0"
+                },
+                navArgument(ForecastViewModel.ARG_COUNTRY_CODE) {
+                    type = NavType.StringType
+                    defaultValue = ""
+                },
+                navArgument(ForecastViewModel.ARG_COUNTRY) {
+                    type = NavType.StringType
+                    defaultValue = ""
+                },
+                navArgument(ForecastViewModel.ARG_ADMIN1) {
+                    type = NavType.StringType
+                    defaultValue = ""
                 }
             )
         ) {
@@ -69,7 +85,8 @@ private const val CITY_ROUTE = "city"
 
 /** Tahmin ekranının adres şablonu; süslü parantezler çalışma anında doldurulur. */
 private const val FORECAST_ROUTE =
-    "forecast?name={name}&subtitle={subtitle}&latitude={latitude}&longitude={longitude}"
+    "forecast?name={name}&subtitle={subtitle}&latitude={latitude}&longitude={longitude}" +
+        "&id={id}&countryCode={countryCode}&country={country}&admin1={admin1}"
 
 /**
  * Bir şehir için tahmin ekranının gerçek adresini üretir.
@@ -83,4 +100,8 @@ private fun forecastRoute(city: City): String = buildString {
     append("&subtitle=").append(Uri.encode(city.subtitle))
     append("&latitude=").append(city.latitude)
     append("&longitude=").append(city.longitude)
+    append("&id=").append(city.id)
+    append("&countryCode=").append(Uri.encode(city.countryCode.orEmpty()))
+    append("&country=").append(Uri.encode(city.country.orEmpty()))
+    append("&admin1=").append(Uri.encode(city.admin1.orEmpty()))
 }

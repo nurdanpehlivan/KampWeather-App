@@ -33,6 +33,8 @@ import com.nurdan.hava.data.OpenMeteoWeatherRepository
 import com.nurdan.hava.model.City
 import com.nurdan.hava.model.Forecast
 import com.nurdan.hava.model.WeatherCondition
+import com.nurdan.hava.ui.theme.isNightAt
+import com.nurdan.hava.ui.theme.skyColors
 import kotlin.math.roundToInt
 
 /**
@@ -69,16 +71,18 @@ class HavaWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = HavaWidget()
 }
 
-private val Coral = ColorProvider(Color(0xFFE4572E))
-private val Paper = ColorProvider(Color(0xFFFBF6EE))
-private val PaperSoft = ColorProvider(Color(0xCCFBF6EE))
+private val Snow = ColorProvider(Color(0xFFFFFFFF))
+private val SnowSoft = ColorProvider(Color(0xCCFFFFFF))
 
 @Composable
 private fun WidgetContent(city: City?, forecast: Forecast?, emptyText: String) {
+    val sky = forecast?.let {
+        skyColors(WeatherCondition.fromWeatherCode(it.current.weatherCode), isNightAt(it.current.observedAt))[1]
+    } ?: Color(0xFF2F80ED)
     Column(
         modifier = GlanceModifier
             .fillMaxSize()
-            .background(Coral)
+            .background(ColorProvider(sky))
             .cornerRadius(24.dp)
             .padding(16.dp)
             .clickable(actionStartActivity<MainActivity>()),
@@ -86,29 +90,29 @@ private fun WidgetContent(city: City?, forecast: Forecast?, emptyText: String) {
     ) {
         if (city == null) {
             Text("☁️", style = TextStyle(fontSize = 32.sp))
-            Text(emptyText, style = TextStyle(color = Paper, fontSize = 14.sp, fontWeight = FontWeight.Medium))
+            Text(emptyText, style = TextStyle(color = Snow, fontSize = 14.sp, fontWeight = FontWeight.Medium))
             return@Column
         }
-        Text(city.name, style = TextStyle(color = Paper, fontSize = 16.sp, fontWeight = FontWeight.Bold), maxLines = 1)
+        Text(city.name, style = TextStyle(color = Snow, fontSize = 16.sp, fontWeight = FontWeight.Bold), maxLines = 1)
         if (forecast == null) {
-            Text("—", style = TextStyle(color = Paper, fontSize = 40.sp))
+            Text("—", style = TextStyle(color = Snow, fontSize = 40.sp))
             return@Column
         }
         val condition = WeatherCondition.fromWeatherCode(forecast.current.weatherCode)
         Row(verticalAlignment = Alignment.Vertical.CenterVertically) {
             Text(
                 "${forecast.current.temperatureC.roundToInt()}°",
-                style = TextStyle(color = Paper, fontSize = 44.sp, fontWeight = FontWeight.Bold)
+                style = TextStyle(color = Snow, fontSize = 44.sp, fontWeight = FontWeight.Bold)
             )
             Spacer(GlanceModifier.padding(start = 8.dp))
             Text(condition.emoji, style = TextStyle(fontSize = 32.sp))
         }
-        Text(condition.label, style = TextStyle(color = Paper, fontSize = 14.sp))
+        Text(condition.label, style = TextStyle(color = Snow, fontSize = 14.sp))
         forecast.daily.firstOrNull()?.let {
             Spacer(GlanceModifier.height(2.dp))
             Text(
                 "↑ ${it.maxTemperatureC.roundToInt()}°   ↓ ${it.minTemperatureC.roundToInt()}°",
-                style = TextStyle(color = PaperSoft, fontSize = 12.sp)
+                style = TextStyle(color = SnowSoft, fontSize = 12.sp)
             )
         }
     }

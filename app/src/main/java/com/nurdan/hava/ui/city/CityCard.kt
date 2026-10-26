@@ -38,8 +38,8 @@ import kotlin.math.abs
 /**
  * Listedeki tek bir şehir.
  *
- * Solda rozet (Türkiye'de plaka, diğer ülkelerde bayrak), ortada ad ve bölge,
- * sağda koordinat ve ok. Seçili şehir mercan kenarlık ve açık zeminle vurgulanır.
+ * Solda rozet (Türkiye'de plaka, diğer ülkelerde bayrak), ortada ad, bölge ve koordinat,
+ * sağda favori kalbi. Cam görünümlüdür; seçili şehir güneş sarısı kenarlıkla vurgulanır.
  */
 @Composable
 fun CityCard(
@@ -59,7 +59,10 @@ fun CityCard(
         modifier = modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
         color = container,
-        border = if (selected) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null
+        border = BorderStroke(
+            if (selected) 2.dp else 1.dp,
+            if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+        )
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
@@ -118,7 +121,7 @@ fun CityCard(
 @Composable
 private fun CityBadge(city: City, modifier: Modifier = Modifier) {
     val plate = LicensePlate.of(city)
-    val background = plate?.let { plateColor(it.toInt()) } ?: MaterialTheme.colorScheme.background
+    val background = plate?.let { plateColor(it.toInt()) } ?: MaterialTheme.colorScheme.primaryContainer
     Surface(modifier = modifier.size(52.dp), shape = MaterialTheme.shapes.medium, color = background) {
         Box(contentAlignment = Alignment.Center) {
             if (plate != null) {

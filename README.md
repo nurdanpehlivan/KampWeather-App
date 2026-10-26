@@ -10,8 +10,9 @@ tahminini gösterir. Yükleniyor / veri / boş / hata durumlarının hepsi ele a
 
 | Alan | Ne yaptım |
 |---|---|
-| Tasarım | Krem "kâğıt" gündüz teması ve lacivert gece teması, mercan vurgu rengi, serif başlıklar, yeni uygulama simgesi |
-| Şehir ekranı | Kaydırınca küçülen büyük başlık ve tarih, hap biçimli arama kutusu, sonuç sayısı, durumlar arasında yumuşak geçiş |
+| Tasarım | Havaya göre tema: ekranın zemini o anki gökyüzü (açıkta mavi, gece lacivert, yağmurda gri-mavi, fırtınada mor). Kartlar yarı saydam cam, sıcaklıklar ince ve büyük, yeni uygulama simgesi |
+| Ana ekran: Şehirlerim | Konum şehri ve favoriler, her biri kendi gökyüzü renginde kart: anlık sıcaklık, durum, en yüksek/en düşük, maskot. Sola kaydırınca kaldır, aşağı çekince yenile |
+| Arama | Bir şey yazınca açılır: kaydırınca küçülen başlık, cam arama kutusu, sonuç sayısı, durumlar arasında yumuşak geçiş |
 | Şehir kartı | Türkiye'deki şehirler için renkli **plaka rozeti** (06, 34…), diğer ülkeler için bayrak, koordinat |
 | Arama | Yazdıkça arama (450 ms bekleme ile tek istek), klavyede "Ara" tuşu, temizle (×) düğmesi |
 | Seçili şehir | Dokunulan şehir vurgulanır; Logcat'e `Tıklandı: Ankara` yazılır (filtre: `CityCard`) |
@@ -19,12 +20,12 @@ tahminini gösterir. Yükleniyor / veri / boş / hata durumlarının hepsi ele a
 | Yükleniyor | Dalga gibi "nefes alan" iskelet kartlar |
 | Ağ | OkHttp günlükçüsü: debug derlemesinde istekler Logcat'te (`okhttp.OkHttpClient`) |
 | Maskot | Havaya göre kılık değiştiren bulut: güneşte gözlük, yağmurda şemsiye, karda atkı, fırtınada endişeli; göz kırpar ve süzülür. Tamamen Canvas ile çizildi |
-| Favoriler | Kalple favoriye ekle; favoriler DataStore'da saklanır ve arama kutusunun altında tek dokunuşla açılır |
-| Konumum | İzin isteyip telefonun bulunduğu şehrin tahminini açar (Play Services gerektirmez) |
+| Favoriler | Arama sonucunda ya da tahmin ekranının başlığındaki kalple eklenir; DataStore'da saklanır, ana ekranda hava kartı olur |
+| Konumum | İzin isteyip bulunduğun şehri bulur, ana ekranın ilk kartı yapar (Play Services gerektirmez) |
 | Yağmur uyarısı | Önümüzdeki 3 saatte yağış olasılığı %50'yi geçerse "X saat içinde yağmur bekleniyor" bandı |
 | Gün doğumu yayı | Güneşin doğuştan batışa ilerleyişi, gün ışığı süresi |
-| Widget | Ana ekranda ilk favori şehrin (yoksa son bakılan şehrin) anlık havası, 30 dakikada bir tazelenir |
-| Testler | Yazdıkça arama, favoriler, konum, plaka, yağmur uyarısı, gün yolu ve maskot için birim testleri (toplam 53) |
+| Widget | Telefonun ana ekranında konum şehrinin (yoksa ilk favorinin) anlık havası, o havanın renginde; 30 dakikada bir tazelenir |
+| Testler | Yazdıkça arama, favoriler, konum, plaka, yağmur uyarısı, gün yolu ve maskot için birim testleri (toplam 56) |
 
 ## Kamp kitapçığı kontrol listesi
 

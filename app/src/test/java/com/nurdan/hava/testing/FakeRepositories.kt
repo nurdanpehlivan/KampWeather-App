@@ -98,7 +98,14 @@ class FakeSavedCitiesRepository : SavedCitiesRepository {
         lastViewed = city
     }
 
-    override suspend fun widgetCity(): City? = state.value.firstOrNull() ?: lastViewed
+    private val location = MutableStateFlow<City?>(null)
+    override val locationCity: Flow<City?> = location
+
+    override suspend fun setLocationCity(city: City) {
+        location.value = city
+    }
+
+    override suspend fun widgetCity(): City? = location.value ?: state.value.firstOrNull() ?: lastViewed
 }
 
 /** @param result Konum isteğinde dönecek şehir; `null` ise konum bulunamamış sayılır. */

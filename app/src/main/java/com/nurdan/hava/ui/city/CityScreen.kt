@@ -1,4 +1,5 @@
 package com.nurdan.hava.ui.city
+
 import android.Manifest
 import android.content.pm.PackageManager
 import android.widget.Toast
@@ -8,32 +9,21 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.AssistChipDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -49,6 +39,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -63,13 +54,17 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nurdan.hava.R
 import com.nurdan.hava.model.City
 import com.nurdan.hava.model.MascotMood
+import com.nurdan.hava.model.WeatherCondition
 import com.nurdan.hava.ui.LoadState
 import com.nurdan.hava.ui.component.EmptyView
 import com.nurdan.hava.ui.component.ErrorView
 import com.nurdan.hava.ui.component.SkeletonList
 import com.nurdan.hava.ui.mascot.CloudMascot
 import com.nurdan.hava.ui.theme.HavaTheme
+import com.nurdan.hava.ui.theme.isNightAt
+import com.nurdan.hava.ui.theme.sky
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -83,6 +78,7 @@ fun CityRoute(onCityClick: (City) -> Unit, modifier: Modifier = Modifier, viewMo
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val selectedCityId by viewModel.selectedCityId.collectAsStateWithLifecycle()
     val favorites by viewModel.favorites.collectAsStateWithLifecycle()
+    val myCities by viewModel.myCities.collectAsStateWithLifecycle()
     val locationState by viewModel.location.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
@@ -99,18 +95,13 @@ fun CityRoute(onCityClick: (City) -> Unit, modifier: Modifier = Modifier, viewMo
         }
     }
 
-    // Konum bulununca o şehrin tahminine geç; bulunamazsa kısa bir uyarı göster.
+    // Konum bulununca ana ekrandaki ilk kart olur; bulunamazsa kısa bir uyarı.
     LaunchedEffect(locationState) {
-        when (val state = locationState) {
-            is LocationState.Found -> {
-                openCity(state.city)
-                viewModel.onLocationHandled()
-            }
-            LocationState.Failed -> {
-                Toast.makeText(context, R.string.location_failed, Toast.LENGTH_LONG).show()
-                viewModel.onLocationHandled()
-            }
-            else -> Unit
+        if (locationState == LocationState.Failed) {
+            Toast.makeText(context, R.string.location_failed, Toast.LENGTH_LONG).show()
+        }
+        if (locationState is LocationState.Found || locationState == LocationState.Failed) {
+            viewModel.onLocationHandled()
         }
     }
 
@@ -118,12 +109,14 @@ fun CityRoute(onCityClick: (City) -> Unit, modifier: Modifier = Modifier, viewMo
         query = query,
         uiState = uiState,
         selectedCityId = selectedCityId,
-        favorites = favorites,
+        favoriteIds = favorites.map { it.id }.toSet(),
+        myCities = myCities,
         locating = locationState == LocationState.Searching,
         onQueryChange = viewModel::onQueryChange,
         onSearch = viewModel::search,
         onCityClick = openCity,
         onToggleFavorite = viewModel::onToggleFavorite,
+        onRefreshMyCities = viewModel::onRefreshMyCities,
         onLocateClick = {
             val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) ==
                 PackageManager.PERMISSION_GRANTED
@@ -134,8 +127,9 @@ fun CityRoute(onCityClick: (City) -> Unit, modifier: Modifier = Modifier, viewMo
 }
 
 /**
- * Ana ekran: büyük serif başlık, hap biçimli arama kutusu ve şehir listesi.
- * Başlık liste kaydırıldıkça küçülür.
+ * Ana ekran. Zemini, listedeki ilk şehrin o anki gökyüzüdür (yoksa saate göre açık gökyüzü).
+ *
+ * Arama kutusu boşken "Şehirlerim" kartları, bir şey yazılınca arama sonuçları görünür.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -147,15 +141,23 @@ fun CityScreen(
     onSearch: () -> Unit,
     onCityClick: (City) -> Unit,
     modifier: Modifier = Modifier,
-    favorites: List<City> = emptyList(),
+    favoriteIds: Set<Long> = emptySet(),
+    myCities: List<CityWeather> = emptyList(),
     locating: Boolean = false,
     onToggleFavorite: (City) -> Unit = {},
+    onRefreshMyCities: () -> Unit = {},
     onLocateClick: () -> Unit = {}
 ) {
+    val home = myCities.firstNotNullOfOrNull { (it.weather as? LoadState.Success)?.data }
+    val condition = home?.let { WeatherCondition.fromWeatherCode(it.current.weatherCode) } ?: WeatherCondition.CLEAR
+    val night = home?.let { isNightAt(it.current.observedAt) } ?: isNightAt(LocalDateTime.now())
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+
     Scaffold(
-        modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-        containerColor = MaterialTheme.colorScheme.background,
+        modifier = modifier
+            .sky(condition, night)
+            .nestedScroll(scrollBehavior.nestedScrollConnection),
+        containerColor = Color.Transparent,
         topBar = {
             LargeTopAppBar(
                 title = {
@@ -168,10 +170,13 @@ fun CityScreen(
                         )
                     }
                 },
-                actions = { CloudMascot(mood = MascotMood.SUNNY, size = 64.dp, modifier = Modifier.padding(end = 12.dp)) },
+                actions = {
+                    CloudMascot(mood = MascotMood.from(condition, night), size = 64.dp, modifier = Modifier.padding(end = 12.dp))
+                },
                 colors = TopAppBarDefaults.largeTopAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    scrolledContainerColor = MaterialTheme.colorScheme.background
+                    containerColor = Color.Transparent,
+                    scrolledContainerColor = Color.Transparent,
+                    titleContentColor = Color.White
                 ),
                 scrollBehavior = scrollBehavior
             )
@@ -186,47 +191,71 @@ fun CityScreen(
                 query = query,
                 onQueryChange = onQueryChange,
                 onSearch = onSearch,
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
+                modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 8.dp)
             )
-            QuickRow(
-                favorites = favorites,
-                locating = locating,
-                onLocateClick = onLocateClick,
-                onCityClick = onCityClick
-            )
-            // Durumlar arasında sert geçiş yerine yumuşak bir solma.
-            AnimatedContent(
-                targetState = uiState,
-                contentKey = { it::class },
-                transitionSpec = { fadeIn() togetherWith fadeOut() },
-                label = "cityState",
-                modifier = Modifier.fillMaxSize()
-            ) { state ->
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    when (state) {
-                        LoadState.Loading -> SkeletonList()
-                        is LoadState.Success -> CityList(
-                            cities = state.data,
-                            selectedCityId = selectedCityId,
-                            favoriteIds = favorites.map { it.id }.toSet(),
-                            onCityClick = onCityClick,
-                            onToggleFavorite = onToggleFavorite
-                        )
-                        LoadState.Empty -> EmptyView(
-                            title = stringResource(R.string.city_empty_title),
-                            message = stringResource(R.string.city_empty_message)
-                        )
-                        is LoadState.Error -> ErrorView(message = state.message, onRetry = onSearch)
-                    }
-                }
+            if (query.isBlank()) {
+                MyCitiesList(
+                    cities = myCities,
+                    locating = locating,
+                    onLocateClick = onLocateClick,
+                    onOpen = onCityClick,
+                    onRemove = onToggleFavorite,
+                    onRefresh = onRefreshMyCities
+                )
+            } else {
+                SearchResults(
+                    uiState = uiState,
+                    selectedCityId = selectedCityId,
+                    favoriteIds = favoriteIds,
+                    onSearch = onSearch,
+                    onCityClick = onCityClick,
+                    onToggleFavorite = onToggleFavorite
+                )
+            }
+        }
+    }
+}
+
+/** Arama sonucunun dört durumu; durumlar arasında yumuşak bir solma ile geçilir. */
+@Composable
+private fun SearchResults(
+    uiState: LoadState<List<City>>,
+    selectedCityId: Long?,
+    favoriteIds: Set<Long>,
+    onSearch: () -> Unit,
+    onCityClick: (City) -> Unit,
+    onToggleFavorite: (City) -> Unit
+) {
+    AnimatedContent(
+        targetState = uiState,
+        contentKey = { it::class },
+        transitionSpec = { fadeIn() togetherWith fadeOut() },
+        label = "cityState",
+        modifier = Modifier.fillMaxSize()
+    ) { state ->
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            when (state) {
+                LoadState.Loading -> SkeletonList()
+                is LoadState.Success -> CityList(
+                    cities = state.data,
+                    selectedCityId = selectedCityId,
+                    favoriteIds = favoriteIds,
+                    onCityClick = onCityClick,
+                    onToggleFavorite = onToggleFavorite
+                )
+                LoadState.Empty -> EmptyView(
+                    title = stringResource(R.string.city_empty_title),
+                    message = stringResource(R.string.city_empty_message)
+                )
+                is LoadState.Error -> ErrorView(message = state.message, onRetry = onSearch)
             }
         }
     }
 }
 
 /**
- * Hap biçimli arama kutusu. Yazdıkça arama ViewModel'de kendiliğinden başlar;
- * klavyedeki "Ara" tuşu beklemeden hemen arar.
+ * Cam görünümlü, hap biçimli arama kutusu. Yazdıkça arama ViewModel'de kendiliğinden
+ * başlar; klavyedeki "Ara" tuşu beklemeden hemen arar.
  */
 @Composable
 private fun SearchField(query: String, onQueryChange: (String) -> Unit, onSearch: () -> Unit, modifier: Modifier = Modifier) {
@@ -247,11 +276,16 @@ private fun SearchField(query: String, onQueryChange: (String) -> Unit, onSearch
         singleLine = true,
         shape = CircleShape,
         colors = OutlinedTextFieldDefaults.colors(
-            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+            focusedContainerColor = MaterialTheme.colorScheme.primaryContainer,
             unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-            unfocusedBorderColor = MaterialTheme.colorScheme.surfaceVariant,
-            focusedBorderColor = MaterialTheme.colorScheme.primary,
-            focusedLeadingIconColor = MaterialTheme.colorScheme.primary
+            unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+            focusedBorderColor = Color.White,
+            cursorColor = Color.White,
+            focusedLeadingIconColor = Color.White,
+            unfocusedLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            focusedTrailingIconColor = Color.White,
+            unfocusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            focusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant
         ),
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
         keyboardActions = KeyboardActions(
@@ -275,24 +309,16 @@ private fun CityList(
 ) {
     LazyColumn(
         modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 32.dp),
+        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         item(key = "count") {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 4.dp)) {
-                Box(
-                    modifier = Modifier
-                        .size(8.dp)
-                        .background(MaterialTheme.colorScheme.primary, CircleShape)
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = pluralStringResource(R.plurals.city_result_count, cities.size, cities.size)
-                        .uppercase(TURKISH),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+            Text(
+                text = pluralStringResource(R.plurals.city_result_count, cities.size, cities.size).uppercase(TURKISH),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 4.dp, bottom = 2.dp)
+            )
         }
         items(items = cities, key = { it.id }) { city ->
             CityCard(
@@ -307,57 +333,6 @@ private fun CityList(
     }
 }
 
-/**
- * Arama kutusunun altındaki yatay şerit: önce "Konumum", ardından favori şehirler.
- * Tek dokunuşla tahmin ekranına geçilir.
- */
-@Composable
-private fun QuickRow(favorites: List<City>, locating: Boolean, onLocateClick: () -> Unit, onCityClick: (City) -> Unit) {
-    LazyRow(
-        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        item(key = "location") {
-            AssistChip(
-                onClick = onLocateClick,
-                enabled = !locating,
-                label = { Text(stringResource(if (locating) R.string.locating else R.string.my_location)) },
-                leadingIcon = {
-                    if (locating) {
-                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                    } else {
-                        Icon(Icons.Filled.LocationOn, contentDescription = null, modifier = Modifier.size(18.dp))
-                    }
-                },
-                shape = CircleShape,
-                colors = AssistChipDefaults.assistChipColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    labelColor = MaterialTheme.colorScheme.onPrimary,
-                    leadingIconContentColor = MaterialTheme.colorScheme.onPrimary
-                ),
-                border = null
-            )
-        }
-        items(items = favorites, key = { "fav-${it.id}" }) { city ->
-            AssistChip(
-                onClick = { onCityClick(city) },
-                label = { Text(city.name) },
-                leadingIcon = {
-                    Icon(
-                        Icons.Filled.Favorite,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                },
-                shape = CircleShape,
-                colors = AssistChipDefaults.assistChipColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-                border = null
-            )
-        }
-    }
-}
-
 private val TURKISH: Locale = Locale.forLanguageTag("tr")
 
 /** "26 EKİM PAZARTESİ". */
@@ -367,7 +342,7 @@ private fun todayLine(): String = LocalDate.now()
 
 @Preview(showBackground = true)
 @Composable
-private fun CityScreenPreview() {
+private fun CityScreenSearchPreview() {
     HavaTheme {
         CityScreen(
             query = "Ankara",
@@ -379,21 +354,7 @@ private fun CityScreenPreview() {
                 )
             ),
             selectedCityId = 323786,
-            onQueryChange = {},
-            onSearch = {},
-            onCityClick = {}
-        )
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun CityScreenEmptyNightPreview() {
-    HavaTheme(darkTheme = true) {
-        CityScreen(
-            query = "xyz",
-            uiState = LoadState.Empty,
-            selectedCityId = null,
+            favoriteIds = setOf(745044),
             onQueryChange = {},
             onSearch = {},
             onCityClick = {}

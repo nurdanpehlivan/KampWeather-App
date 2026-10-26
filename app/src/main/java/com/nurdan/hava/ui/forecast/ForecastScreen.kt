@@ -1,5 +1,6 @@
 package com.nurdan.hava.ui.forecast
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -24,16 +25,18 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -42,6 +45,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -60,8 +64,9 @@ import com.nurdan.hava.ui.component.EmptyView
 import com.nurdan.hava.ui.component.ErrorView
 import com.nurdan.hava.ui.mascot.CloudMascot
 import com.nurdan.hava.ui.theme.HavaTheme
-import com.nurdan.hava.ui.theme.onSky
-import com.nurdan.hava.ui.theme.skyBrush
+import com.nurdan.hava.ui.theme.glass
+import com.nurdan.hava.ui.theme.isNightAt
+import com.nurdan.hava.ui.theme.sky
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -73,6 +78,7 @@ import kotlin.math.roundToInt
 @Composable
 fun ForecastRoute(onBack: () -> Unit, modifier: Modifier = Modifier, viewModel: ForecastViewModel = viewModel()) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val isFavorite by viewModel.isFavorite.collectAsStateWithLifecycle()
 
     ForecastScreen(
         cityName = viewModel.cityName,
@@ -80,15 +86,15 @@ fun ForecastRoute(onBack: () -> Unit, modifier: Modifier = Modifier, viewModel: 
         uiState = uiState,
         onBack = onBack,
         onRetry = viewModel::onRetry,
+        isFavorite = isFavorite,
+        onToggleFavorite = viewModel::onToggleFavorite,
         modifier = modifier
     )
 }
 
 /**
- * Bir şehrin hava tahmini.
- *
- * Üstte, havanın durumuna ve günün saatine göre renklenen bir "gökyüzü" bloğu;
- * altında üç ölçüm kutusu, saatlik sıcaklık sütunları ve haftalık sıcaklık aralığı çubukları.
+ * Bir şehrin hava tahmini. Bütün ekran o şehrin o anki gökyüzüyle boyanır;
+ * bilgiler bu gökyüzünün üstünde cam kutularda durur.
  */
 @Composable
 fun ForecastScreen(
@@ -97,22 +103,38 @@ fun ForecastScreen(
     uiState: LoadState<Forecast>,
     onBack: () -> Unit,
     onRetry: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isFavorite: Boolean = false,
+    onToggleFavorite: () -> Unit = {}
 ) {
+    val forecast = (uiState as? LoadState.Success)?.data
+    val condition = forecast?.let { WeatherCondition.fromWeatherCode(it.current.weatherCode) } ?: WeatherCondition.UNKNOWN
+    val night = forecast?.let { isNightAt(it.current.observedAt) } ?: isNightAt(LocalDateTime.now())
     val title = cityName.ifEmpty { stringResource(R.string.detail_title) }
-    Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        when (uiState) {
-            is LoadState.Success -> ForecastContent(
-                cityName = title,
-                subtitle = subtitle,
-                forecast = uiState.data,
-                onBack = onBack
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .sky(condition, night)
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            TopRow(
+                title = if (forecast == null) title else "",
+                onBack = onBack,
+                isFavorite = isFavorite,
+                onToggleFavorite = onToggleFavorite
             )
-            else -> Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
-                PlainHeader(title = title, subtitle = subtitle, onBack = onBack)
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            when (uiState) {
+                is LoadState.Success -> ForecastContent(
+                    cityName = title,
+                    subtitle = subtitle,
+                    forecast = uiState.data,
+                    condition = condition,
+                    night = night
+                )
+                else -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     when (uiState) {
-                        LoadState.Loading -> CircularProgressIndicator(strokeCap = StrokeCap.Round)
+                        LoadState.Loading -> CircularProgressIndicator(color = Color.White, strokeCap = StrokeCap.Round)
                         LoadState.Empty -> EmptyView(title = stringResource(R.string.detail_empty))
                         is LoadState.Error -> ErrorView(message = uiState.message, onRetry = onRetry)
                         is LoadState.Success -> Unit
@@ -123,117 +145,149 @@ fun ForecastScreen(
     }
 }
 
+/** Geri düğmesi ve favori kalbi; ikisi de cam daireler içinde. */
 @Composable
-private fun PlainHeader(title: String, subtitle: String, onBack: () -> Unit) {
-    Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-        BackButton(onBack = onBack, tint = MaterialTheme.colorScheme.onSurface, container = MaterialTheme.colorScheme.surfaceVariant)
-        Column(modifier = Modifier.padding(start = 8.dp)) {
-            Text(title, style = MaterialTheme.typography.titleLarge)
-            if (subtitle.isNotEmpty()) {
-                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-    }
-}
-
-@Composable
-private fun BackButton(onBack: () -> Unit, tint: Color, container: Color) {
-    IconButton(onClick = onBack) {
-        Surface(shape = CircleShape, color = container) {
+private fun TopRow(title: String, onBack: () -> Unit, isFavorite: Boolean, onToggleFavorite: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .statusBarsPadding()
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconButton(onClick = onBack) {
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                 contentDescription = stringResource(R.string.action_back),
-                tint = tint,
-                modifier = Modifier.padding(8.dp).size(20.dp)
+                tint = Color.White,
+                modifier = Modifier
+                    .glass(CircleShape)
+                    .padding(8.dp)
+                    .size(20.dp)
+            )
+        }
+        Text(title, style = MaterialTheme.typography.titleLarge, color = Color.White, modifier = Modifier.weight(1f))
+        val heartScale by animateFloatAsState(if (isFavorite) 1.12f else 1f, label = "heart")
+        IconButton(onClick = onToggleFavorite) {
+            Icon(
+                imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                contentDescription = stringResource(if (isFavorite) R.string.action_favorite_remove else R.string.action_favorite_add),
+                tint = if (isFavorite) MaterialTheme.colorScheme.primary else Color.White,
+                modifier = Modifier
+                    .glass(CircleShape)
+                    .padding(8.dp)
+                    .size(20.dp)
+                    .scale(heartScale)
             )
         }
     }
 }
 
 @Composable
-private fun ForecastContent(cityName: String, subtitle: String, forecast: Forecast, onBack: () -> Unit) {
+private fun ForecastContent(cityName: String, subtitle: String, forecast: Forecast, condition: WeatherCondition, night: Boolean) {
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .navigationBarsPadding()
             .padding(bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        SkyHeader(
-            cityName = cityName,
-            subtitle = subtitle,
-            current = forecast.current,
-            today = forecast.daily.firstOrNull(),
-            onBack = onBack
-        )
+        Hero(cityName, subtitle, forecast.current, forecast.daily.firstOrNull(), condition, night)
         RainAlert.find(forecast.hourly, forecast.current.observedAt)?.let {
             RainBanner(alert = it, modifier = Modifier.padding(horizontal = 20.dp))
         }
+        GlassSection(title = stringResource(R.string.detail_hourly)) {
+            HourlyColumns(hours = forecast.hourly)
+        }
         MetricTiles(current = forecast.current, modifier = Modifier.padding(horizontal = 20.dp))
+        GlassSection(title = stringResource(R.string.detail_daily)) {
+            WeekRows(days = forecast.daily)
+        }
         forecast.daily.firstOrNull()?.let { today ->
             SunPath.of(forecast.current.observedAt, today.sunrise, today.sunset)?.let {
                 SunArcCard(sun = it, modifier = Modifier.padding(horizontal = 20.dp))
             }
         }
-        SectionLabel(stringResource(R.string.detail_hourly))
-        HourlyColumns(hours = forecast.hourly)
-        SectionLabel(stringResource(R.string.detail_daily))
-        WeekCard(days = forecast.daily, modifier = Modifier.padding(horizontal = 20.dp))
     }
 }
 
-/** Gökyüzü bloğu: durum çubuğunun altına kadar uzanan, alt köşeleri yuvarlatılmış gradyan. */
+/** Ortalanmış büyük blok: şehir, ince dev sıcaklık, durum, en yüksek/en düşük, maskot ve sözü. */
 @Composable
-private fun SkyHeader(cityName: String, subtitle: String, current: CurrentWeather, today: DailyForecast?, onBack: () -> Unit) {
-    val condition = WeatherCondition.fromWeatherCode(current.weatherCode)
-    val night = isNight(current.observedAt)
-    val ink = onSky(condition, night)
+private fun Hero(
+    cityName: String,
+    subtitle: String,
+    current: CurrentWeather,
+    today: DailyForecast?,
+    condition: WeatherCondition,
+    night: Boolean
+) {
+    val mood = MascotMood.from(condition, night)
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(skyBrush(condition, night), RoundedCornerShape(bottomStart = 40.dp, bottomEnd = 40.dp))
-            .statusBarsPadding()
-            .padding(start = 8.dp, end = 24.dp, top = 8.dp, bottom = 32.dp)
+            .padding(horizontal = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        BackButton(onBack = onBack, tint = ink, container = ink.copy(alpha = 0.18f))
-        Column(modifier = Modifier.padding(start = 16.dp, top = 12.dp)) {
-            Text(text = cityName, style = MaterialTheme.typography.headlineMedium, color = ink)
-            if (subtitle.isNotEmpty()) {
-                Text(text = subtitle, style = MaterialTheme.typography.bodyMedium, color = ink.copy(alpha = 0.8f))
-            }
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 12.dp)) {
-                Text(
-                    text = degrees(current.temperatureC),
-                    style = MaterialTheme.typography.displayLarge,
-                    color = ink,
-                    modifier = Modifier.weight(1f)
-                )
-                CloudMascot(mood = MascotMood.from(condition, night), size = 128.dp)
-            }
-            Text(text = "${condition.emoji}  ${condition.label}", style = MaterialTheme.typography.titleLarge, color = ink)
-            today?.let {
-                Text(
-                    text = "En yüksek ${degrees(it.maxTemperatureC)}  ·  En düşük ${degrees(it.minTemperatureC)}",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = ink.copy(alpha = 0.85f),
-                    modifier = Modifier.padding(top = 6.dp)
-                )
-            }
-            // Maskotun konuşma balonu
-            Surface(
-                shape = RoundedCornerShape(topStart = 4.dp, topEnd = 18.dp, bottomStart = 18.dp, bottomEnd = 18.dp),
-                color = ink.copy(alpha = 0.16f),
-                modifier = Modifier.padding(top = 14.dp)
-            ) {
-                Text(
-                    text = MascotMood.from(condition, night).line,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = ink,
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
-                )
-            }
+        Text(cityName, style = MaterialTheme.typography.headlineLarge, color = Color.White, textAlign = TextAlign.Center)
+        if (subtitle.isNotEmpty()) {
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.White.copy(alpha = 0.8f),
+                textAlign = TextAlign.Center
+            )
         }
+        Text(
+            text = degrees(current.temperatureC),
+            style = MaterialTheme.typography.displayLarge,
+            color = Color.White,
+            modifier = Modifier.padding(start = 24.dp)
+        )
+        Text(condition.label, style = MaterialTheme.typography.titleLarge, color = Color.White)
+        today?.let {
+            Text(
+                text = "En yüksek ${degrees(it.maxTemperatureC)}   En düşük ${degrees(it.minTemperatureC)}",
+                style = MaterialTheme.typography.titleMedium,
+                color = Color.White.copy(alpha = 0.85f),
+                modifier = Modifier.padding(top = 2.dp)
+            )
+        }
+        Row(
+            modifier = Modifier.padding(top = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            CloudMascot(mood = mood, size = 76.dp)
+            Text(
+                text = mood.line,
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.White,
+                modifier = Modifier
+                    .glass(RoundedCornerShape(topStart = 4.dp, topEnd = 18.dp, bottomStart = 18.dp, bottomEnd = 18.dp))
+                    .padding(horizontal = 14.dp, vertical = 10.dp)
+            )
+        }
+    }
+}
+
+/** Başlıklı cam kutu. */
+@Composable
+private fun GlassSection(title: String, content: @Composable () -> Unit) {
+    Column(
+        modifier = Modifier
+            .padding(horizontal = 20.dp)
+            .fillMaxWidth()
+            .glass(RoundedCornerShape(24.dp))
+            .padding(vertical = 14.dp)
+    ) {
+        Text(
+            text = title.uppercase(TURKISH),
+            style = MaterialTheme.typography.labelMedium,
+            color = Color.White.copy(alpha = 0.75f),
+            modifier = Modifier.padding(start = 16.dp, bottom = 10.dp)
+        )
+        content()
     }
 }
 
@@ -248,20 +302,22 @@ private fun MetricTiles(current: CurrentWeather, modifier: Modifier = Modifier) 
     if (tiles.isEmpty()) return
     Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         tiles.forEach { (symbol, label, value) ->
-            Surface(
-                modifier = Modifier.weight(1f),
-                shape = MaterialTheme.shapes.large,
-                color = MaterialTheme.colorScheme.surfaceVariant
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .glass(RoundedCornerShape(22.dp))
+                    .padding(horizontal = 12.dp, vertical = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(symbol, style = MaterialTheme.typography.titleLarge)
-                    Text(value, style = MaterialTheme.typography.titleLarge)
-                    Text(
-                        text = label.uppercase(TURKISH),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                Text(symbol, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    text = label.uppercase(TURKISH),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White.copy(alpha = 0.75f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(value, style = MaterialTheme.typography.titleLarge, color = Color.White, maxLines = 1, softWrap = false)
             }
         }
     }
@@ -279,32 +335,32 @@ private fun HourlyColumns(hours: List<HourlyForecast>) {
     val min = upcoming.minOf { it.temperatureC }
     val max = upcoming.maxOf { it.temperatureC }
     LazyRow(
-        contentPadding = PaddingValues(horizontal = 20.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        contentPadding = PaddingValues(horizontal = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         itemsIndexed(items = upcoming, key = { _, hour -> hour.time.toString() }) { index, hour ->
             val first = index == 0
-            val container = if (first) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
-            val content = if (first) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-            Surface(shape = CircleShape, color = container, contentColor = content, modifier = Modifier.width(62.dp)) {
-                Column(
-                    modifier = Modifier.padding(vertical = 14.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Text(
-                        text = if (first) stringResource(R.string.now) else hour.time.format(HOUR_FORMAT),
-                        style = MaterialTheme.typography.labelMedium
-                    )
-                    Text(WeatherCondition.fromWeatherCode(hour.weatherCode).emoji, style = MaterialTheme.typography.titleLarge)
-                    TemperatureStem(fraction = fraction(hour.temperatureC, min, max), color = content)
-                    Text(degrees(hour.temperatureC), style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        text = percent(hour.precipitationProbability) ?: " ",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (first) content else MaterialTheme.colorScheme.secondary
-                    )
-                }
+            Column(
+                modifier = Modifier
+                    .width(56.dp)
+                    .then(if (first) Modifier.glass(CircleShape, strong = true) else Modifier)
+                    .padding(vertical = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(
+                    text = if (first) stringResource(R.string.now) else hour.time.format(HOUR_FORMAT),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = Color.White
+                )
+                Text(WeatherCondition.fromWeatherCode(hour.weatherCode).emoji, style = MaterialTheme.typography.titleLarge)
+                Text(
+                    text = percent(hour.precipitationProbability) ?: " ",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.secondary
+                )
+                TemperatureStem(fraction = fraction(hour.temperatureC, min, max))
+                Text(degrees(hour.temperatureC), style = MaterialTheme.typography.titleMedium, color = Color.White)
             }
         }
     }
@@ -312,13 +368,14 @@ private fun HourlyColumns(hours: List<HourlyForecast>) {
 
 /** Sabit yükseklikte bir kutu; içindeki çubuk alttan [fraction] oranında dolar. */
 @Composable
-private fun TemperatureStem(fraction: Float, color: Color) {
-    Canvas(modifier = Modifier.size(width = 6.dp, height = 44.dp)) {
+private fun TemperatureStem(fraction: Float) {
+    val sun = MaterialTheme.colorScheme.primary
+    Canvas(modifier = Modifier.size(width = 5.dp, height = 40.dp)) {
         val radius = CornerRadius(size.width / 2)
-        drawRoundRect(color = color.copy(alpha = 0.18f), cornerRadius = radius)
+        drawRoundRect(color = Color.White.copy(alpha = 0.2f), cornerRadius = radius)
         val filled = size.height * (0.2f + 0.8f * fraction)
         drawRoundRect(
-            color = color,
+            brush = Brush.verticalGradient(listOf(sun, Color.White), startY = size.height - filled, endY = size.height),
             topLeft = Offset(0f, size.height - filled),
             size = Size(size.width, filled),
             cornerRadius = radius
@@ -326,17 +383,24 @@ private fun TemperatureStem(fraction: Float, color: Color) {
     }
 }
 
-/** Haftalık liste: her gün için haftanın en soğuğundan en sıcağına uzanan bir aralık çubuğu. */
+/** Haftalık satırlar: her gün için haftanın en soğuğundan en sıcağına uzanan bir aralık çubuğu. */
 @Composable
-private fun WeekCard(days: List<DailyForecast>, modifier: Modifier = Modifier) {
+private fun WeekRows(days: List<DailyForecast>) {
     if (days.isEmpty()) return
     val weekMin = days.minOf { it.minTemperatureC }
     val weekMax = days.maxOf { it.maxTemperatureC }
-    Surface(modifier = modifier.fillMaxWidth(), shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.surfaceVariant) {
-        Column(modifier = Modifier.padding(vertical = 8.dp)) {
-            days.forEachIndexed { index, day ->
-                DayRow(day = day, isToday = index == 0, weekMin = weekMin, weekMax = weekMax)
+    Column {
+        days.forEachIndexed { index, day ->
+            if (index > 0) {
+                Box(
+                    modifier = Modifier
+                        .padding(horizontal = 16.dp)
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(Color.White.copy(alpha = 0.15f))
+                )
             }
+            DayRow(day = day, isToday = index == 0, weekMin = weekMin, weekMax = weekMax)
         }
     }
 }
@@ -346,25 +410,27 @@ private fun DayRow(day: DailyForecast, isToday: Boolean, weekMin: Double, weekMa
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 18.dp, vertical = 10.dp),
+            .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(modifier = Modifier.width(78.dp)) {
-            Text(
-                text = if (isToday) stringResource(R.string.today) else day.date.format(DAY_FORMAT).replaceFirstChar(Char::titlecase),
-                style = MaterialTheme.typography.titleMedium
-            )
+        Text(
+            text = if (isToday) stringResource(R.string.today) else day.date.format(DAY_FORMAT).replaceFirstChar(Char::titlecase),
+            style = MaterialTheme.typography.titleMedium,
+            color = Color.White,
+            modifier = Modifier.width(56.dp)
+        )
+        Column(modifier = Modifier.width(44.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(WeatherCondition.fromWeatherCode(day.weatherCode).emoji, style = MaterialTheme.typography.titleLarge)
             percent(day.precipitationProbability)?.let {
-                Text("💧 $it", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
+                Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
             }
         }
-        Text(WeatherCondition.fromWeatherCode(day.weatherCode).emoji, style = MaterialTheme.typography.titleLarge)
         Text(
             text = degrees(day.minTemperatureC),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.titleMedium,
+            color = Color.White.copy(alpha = 0.7f),
             textAlign = TextAlign.End,
-            modifier = Modifier.width(44.dp)
+            modifier = Modifier.width(40.dp)
         )
         RangeBar(
             start = fraction(day.minTemperatureC, weekMin, weekMax),
@@ -376,20 +442,20 @@ private fun DayRow(day: DailyForecast, isToday: Boolean, weekMin: Double, weekMa
         Text(
             text = degrees(day.maxTemperatureC),
             style = MaterialTheme.typography.titleMedium,
+            color = Color.White,
             modifier = Modifier.width(36.dp)
         )
     }
 }
 
-/** Soluk bir ray üzerinde, soğuktan (çivit) sıcağa (mercan) giden renkli bir parça. */
+/** Soluk bir ray üzerinde, soğuktan (buz mavisi) sıcağa (güneş sarısı) giden renkli bir parça. */
 @Composable
 private fun RangeBar(start: Float, end: Float, modifier: Modifier = Modifier) {
-    val track = MaterialTheme.colorScheme.outline
     val cold = MaterialTheme.colorScheme.secondary
     val warm = MaterialTheme.colorScheme.primary
-    Canvas(modifier = modifier.height(6.dp)) {
+    Canvas(modifier = modifier.height(5.dp)) {
         val radius = CornerRadius(size.height / 2)
-        drawRoundRect(color = track, cornerRadius = radius)
+        drawRoundRect(color = Color.White.copy(alpha = 0.2f), cornerRadius = radius)
         val left = size.width * start
         val width = (size.width * (end - start)).coerceAtLeast(size.height)
         drawRoundRect(
@@ -400,23 +466,6 @@ private fun RangeBar(start: Float, end: Float, modifier: Modifier = Modifier) {
         )
     }
 }
-
-@Composable
-private fun SectionLabel(text: String) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 20.dp)) {
-        Text(text = text, style = MaterialTheme.typography.titleLarge)
-        Spacer(Modifier.width(10.dp))
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .height(1.dp)
-                .background(MaterialTheme.colorScheme.outline)
-        )
-    }
-}
-
-/** 06:00–18:59 arası gündüz sayılır; gece gökyüzü lacivert boyanır. */
-private fun isNight(time: LocalDateTime) = time.hour < 6 || time.hour >= 19
 
 /** [value]'nun [min]–[max] aralığındaki konumu, 0..1. */
 private fun fraction(value: Double, min: Double, max: Double): Float =
@@ -429,7 +478,7 @@ private fun percent(value: Int?) = value?.takeIf { it > 0 }?.let { "%$it" }
 private const val HOURLY_COUNT = 24
 private val TURKISH: Locale = Locale.forLanguageTag("tr")
 private val HOUR_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
-private val DAY_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("EEEE", TURKISH)
+private val DAY_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE", TURKISH)
 
 private fun previewForecast(code: Int, hour: Int) = Forecast(
     current = CurrentWeather(
@@ -461,7 +510,7 @@ private fun previewForecast(code: Int, hour: Int) = Forecast(
     }
 )
 
-@Preview(showBackground = true, heightDp = 1100)
+@Preview(showBackground = true, heightDp = 1400)
 @Composable
 private fun ForecastScreenPreview() {
     HavaTheme {
@@ -470,15 +519,16 @@ private fun ForecastScreenPreview() {
             subtitle = "Ankara, Türkiye",
             uiState = LoadState.Success(previewForecast(code = 0, hour = 14)),
             onBack = {},
-            onRetry = {}
+            onRetry = {},
+            isFavorite = true
         )
     }
 }
 
-@Preview(showBackground = true, heightDp = 1100)
+@Preview(showBackground = true, heightDp = 1400)
 @Composable
 private fun ForecastScreenNightRainPreview() {
-    HavaTheme(darkTheme = true) {
+    HavaTheme {
         ForecastScreen(
             cityName = "Rize",
             subtitle = "Rize, Türkiye",

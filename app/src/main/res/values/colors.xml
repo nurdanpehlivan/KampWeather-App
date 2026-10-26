@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
   <!-- Uygulama simgesinin zemini: mercan. Ekran renkleri ui/theme/Color.kt içinde. -->
-  <color name="ic_launcher_background">#E4572E</color>
-  <color name="window_background_night">#14121F</color>
-  <color name="window_background">#FBF6EE</color>
+  <color name="ic_launcher_background">#2F80ED</color>
+  <color name="window_background_night">#0B1D3A</color>
+  <color name="window_background">#2F80ED</color>
 </resources>

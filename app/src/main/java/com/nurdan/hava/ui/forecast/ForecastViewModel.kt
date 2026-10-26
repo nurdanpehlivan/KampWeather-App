@@ -5,14 +5,21 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.gson.JsonSyntaxException
+import com.nurdan.hava.AppGraph
 import com.nurdan.hava.data.OpenMeteoWeatherRepository
+import com.nurdan.hava.data.SavedCitiesRepository
 import com.nurdan.hava.data.WeatherRepository
+import com.nurdan.hava.model.City
 import com.nurdan.hava.model.Forecast
 import com.nurdan.hava.ui.LoadState
 import java.io.IOException
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
 
@@ -25,7 +32,8 @@ import retrofit2.HttpException
  */
 class ForecastViewModel(
     savedStateHandle: SavedStateHandle,
-    private val repository: WeatherRepository
+    private val repository: WeatherRepository,
+    private val savedCities: SavedCitiesRepository? = null
 ) : ViewModel() {
 
     /**
@@ -33,7 +41,7 @@ class ForecastViewModel(
      * kurucu arar. Varsayılan parametre kullanmak bu imzayı üretmediği için ikincil
      * kurucuyu elle yazıyoruz.
      */
-    constructor(savedStateHandle: SavedStateHandle) : this(savedStateHandle, OpenMeteoWeatherRepository())
+    constructor(savedStateHandle: SavedStateHandle) : this(savedStateHandle, OpenMeteoWeatherRepository(), AppGraph.savedCities)
 
     /** Başlıkta gösterilecek şehir adı; rotadan gelir. */
     val cityName: String = savedStateHandle.get<String>(ARG_NAME).orEmpty()
@@ -43,6 +51,27 @@ class ForecastViewModel(
 
     private val latitude: Double = savedStateHandle.get<String>(ARG_LATITUDE)?.toDoubleOrNull() ?: 0.0
     private val longitude: Double = savedStateHandle.get<String>(ARG_LONGITUDE)?.toDoubleOrNull() ?: 0.0
+
+    /** Rotadan gelen bilgilerle yeniden kurulan şehir; favoriye eklemek için gerekir. */
+    private val city = City(
+        id = savedStateHandle.get<String>(ARG_ID)?.toLongOrNull() ?: 0L,
+        name = cityName,
+        latitude = latitude,
+        longitude = longitude,
+        countryCode = savedStateHandle.get<String>(ARG_COUNTRY_CODE)?.ifEmpty { null },
+        country = savedStateHandle.get<String>(ARG_COUNTRY)?.ifEmpty { null },
+        admin1 = savedStateHandle.get<String>(ARG_ADMIN1)?.ifEmpty { null }
+    )
+
+    /** Bu şehir favorilerde mi? Başlıktaki kalp buna göre dolar. */
+    val isFavorite: StateFlow<Boolean> = (savedCities?.favorites ?: flowOf(emptyList()))
+        .map { list -> list.any { it.id == city.id } }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    fun onToggleFavorite() {
+        val store = savedCities ?: return
+        viewModelScope.launch { store.toggleFavorite(city) }
+    }
 
     private val _uiState = MutableStateFlow<LoadState<Forecast>>(LoadState.Loading)
     val uiState: StateFlow<LoadState<Forecast>> = _uiState.asStateFlow()
@@ -84,5 +113,9 @@ class ForecastViewModel(
         const val ARG_SUBTITLE = "subtitle"
         const val ARG_LATITUDE = "latitude"
         const val ARG_LONGITUDE = "longitude"
+        const val ARG_ID = "id"
+        const val ARG_COUNTRY_CODE = "countryCode"
+        const val ARG_COUNTRY = "country"
+        const val ARG_ADMIN1 = "admin1"
     }
 }
