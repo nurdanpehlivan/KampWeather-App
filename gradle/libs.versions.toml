@@ -38,6 +38,8 @@ kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-cor
 # Retrofit + Gson ile JSON cozumleme.
 retrofit = { group = "com.squareup.retrofit2", name = "retrofit", version.ref = "retrofit" }
 retrofit-converter-gson = { group = "com.squareup.retrofit2", name = "converter-gson", version.ref = "retrofit" }
+# Istek ve yanitlari Logcat'e yazan OkHttp gunlukcusu (tag: okhttp.OkHttpClient).
+okhttp-logging = { group = "com.squareup.okhttp3", name = "logging-interceptor", version.ref = "okhttp" }
 # Testlerde gercek bir sunucu yerine sahte sunucu ayaga kaldirmak icin.
 okhttp-mockwebserver = { group = "com.squareup.okhttp3", name = "mockwebserver", version.ref = "okhttp" }
 

@@ -1,20 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Güneş + bulut: adaptive icon güvenli alanı (66dp) içinde çizilir. -->
+<!-- Uygulama simgesi: ufuktan doğan yarım güneş ve altında iki ufuk çizgisi. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
   android:width="108dp"
   android:height="108dp"
   android:viewportWidth="108"
   android:viewportHeight="108">
   <path
-    android:fillColor="#FFD54F"
-    android:pathData="M46,44m-12,0a12,12 0,1 1,24 0a12,12 0,1 1,-24 0" />
+    android:fillColor="#FBF6EE"
+    android:pathData="M36,58A18,18 0,0 1,72 58Z" />
   <path
     android:fillColor="#00000000"
-    android:pathData="M46,26L46,21M46,67L46,62M28,44L23,44M64,44L69,44M33,31L29.5,27.5M59,31L62.5,27.5M33,57L29.5,60.5"
-    android:strokeWidth="3"
-    android:strokeColor="#FFD54F"
+    android:pathData="M54,30L54,34M38,36.5L40.8,39.3M70,36.5L67.2,39.3M30,50L34,50M78,50L74,50"
+    android:strokeWidth="3.2"
+    android:strokeColor="#FBF6EE"
     android:strokeLineCap="round" />
   <path
-    android:fillColor="#FFFFFF"
-    android:pathData="M44,78L74,78A10,10 0,0 0,74 58A13,13 0,0 0,49.5 60.5A9,9 0,0 0,44 78Z" />
+    android:fillColor="#00000000"
+    android:pathData="M30,64L78,64M40,72L68,72"
+    android:strokeWidth="3.2"
+    android:strokeColor="#FBF6EE"
+    android:strokeLineCap="round" />
 </vector>

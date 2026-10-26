@@ -7,12 +7,12 @@ plugins {
 }
 
 android {
-    namespace = "com.kampplus.hava"
+    namespace = "com.nurdan.hava"
     // compileSdk: derlemede erisilebilen Android API seviyesi.
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.kampplus.hava"
+        applicationId = "com.nurdan.hava"
         // minSdk: uygulamanin calisacagi en dusuk Android surumu.
         minSdk = 26
         // targetSdk: davranislarin hangi surume gore ayarlanacagi.
@@ -57,6 +57,8 @@ android {
     }
     buildFeatures {
         compose = true
+        // BuildConfig.DEBUG: ag gunlugunu yalnizca debug derlemesinde acmak icin.
+        buildConfig = true
     }
 
     testOptions {
@@ -95,6 +97,7 @@ dependencies {
 
     implementation(libs.retrofit)
     implementation(libs.retrofit.converter.gson)
+    implementation(libs.okhttp.logging)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

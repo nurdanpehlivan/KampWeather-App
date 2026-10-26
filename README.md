@@ -1,27 +1,32 @@
-<div align="center">
-
-# Proje Yükleme Aşamaları
-<img width="1722" height="1304" alt="image" src="https://github.com/user-attachments/assets/e6b24957-2fd1-433e-ab17-6d281511b96e" />
-<img width="2870" height="428" alt="image" src="https://github.com/user-attachments/assets/162f4120-8566-4d97-adbb-615301f1f98c" />
-<img width="986" height="739" alt="image (2)" src="https://github.com/user-attachments/assets/58e903f3-1b5b-464d-857d-020925533c32" />
-
-</br>
-</br>
-</br>
-</br>
-</br>
-
-<!--
-# Repoya erişim
-<img src="docs/qr-repo.png" alt="github.com/tc-yusufburakdemir/weather-app adresinin QR kodu" width="220">
-[github.com/tc-yusufburakdemir/weather-app](https://github.com/tc-yusufburakdemir/weather-app)
--->
-
-</div>
-
 # Hava — Şehir Arama ve Hava Tahmini
 
-Bilişim Kampı Android eğitiminin **referans çözümü**. Open-Meteo servisinden şehir arar, seçilen şehrin anlık durumunu, saatlik ve 7 günlük tahminini gösterir; yükleniyor / veri / boş / hata durumlarının tamamını ele alır.
+**Geliştiren:** Nurdan Pehlivan · Bilişim Kampı (Kamp+) Android eğitimi
+
+Kampta herkese verilen başlangıç projesi üzerine kendi tasarımımla geliştirdiğim sürüm.
+Open-Meteo servisinden şehir arar; seçilen şehrin anlık durumunu, saatlik ve 7 günlük
+tahminini gösterir. Yükleniyor / veri / boş / hata durumlarının hepsi ele alınır.
+
+## Bu sürümde neler var
+
+| Alan | Ne yaptım |
+|---|---|
+| Tasarım | Krem "kâğıt" gündüz teması ve lacivert gece teması, mercan vurgu rengi, serif başlıklar, yeni uygulama simgesi |
+| Şehir ekranı | Kaydırınca küçülen büyük başlık ve tarih, hap biçimli arama kutusu, sonuç sayısı, durumlar arasında yumuşak geçiş |
+| Şehir kartı | Türkiye'deki şehirler için renkli **plaka rozeti** (06, 34…), diğer ülkeler için bayrak, koordinat |
+| Arama | Yazdıkça arama (450 ms bekleme ile tek istek), klavyede "Ara" tuşu, temizle (×) düğmesi |
+| Seçili şehir | Dokunulan şehir vurgulanır; Logcat'e `Tıklandı: Ankara` yazılır (filtre: `CityCard`) |
+| Tahmin ekranı | Havaya ve saate göre renklenen gökyüzü bloğu, ölçüm kutuları, sıcaklık çubuklu saatlik sütunlar, haftalık sıcaklık aralığı çubukları |
+| Yükleniyor | Dalga gibi "nefes alan" iskelet kartlar |
+| Ağ | OkHttp günlükçüsü: debug derlemesinde istekler Logcat'te (`okhttp.OkHttpClient`) |
+| Testler | Yazdıkça arama, seçili şehir ve plaka eşlemesi için yeni birim testleri |
+
+## Kamp kitapçığı kontrol listesi
+
+- **Uygulama 2:** Uygulama adı, `CityCard` + `@Preview`, `LazyColumn`, Logcat'e tıklama kaydı. Bonuslar: karanlık tema, plaka rozetine renk, TopAppBar ile başlık, kendi simgem.
+- **Uygulama 3:** `OutlinedTextField` ile arama, yazdıkça süzme, ekran döndürülünce kaybolmayan state (ViewModel), seçili şehir vurgusu, "Şehir bulunamadı". Bonuslar: state `CityViewModel`'de, temizle (×) düğmesi, sonuç sayısı.
+- **Uygulama 4:** INTERNET izni, Retrofit + Gson, `City` / `CitySearchResponse`, `CityApi` + `ApiClient`, `CityViewModel` ile Loading → Success / Empty / Error, "Tekrar dene". Bonuslar: OkHttp log, `ImeAction.Search`, `CityRepository`.
+
+
 
 Mimari ayrıntıları için [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
@@ -36,7 +41,7 @@ UI (Composable)  →  ViewModel (StateFlow)  →  Repository (suspend)  →  Ret
 ```
 
 ```
-com.kampplus.hava
+com.nurdan.hava
 ├── MainActivity.kt            Uygulamanın kapısı
 ├── model/                     Veri neye benzer?
 │   ├── City.kt                City + CitySearchResponse
@@ -54,7 +59,7 @@ com.kampplus.hava
     ├── HavaNavHost.kt         iki ekran arası geçiş
     ├── city/                  CityScreen · CityViewModel · CityCard
     ├── forecast/              ForecastScreen · ForecastViewModel
-    ├── component/             ShimmerList · EmptyView · ErrorView
+    ├── component/             SkeletonList · EmptyView · ErrorView
     └── theme/                 Color · Theme · Type
 ```
 

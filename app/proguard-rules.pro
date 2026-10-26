@@ -6,12 +6,12 @@
 # kisaltilirsa eslestirme bozulur ve butun alanlar null gelir.
 -keepattributes Signature
 -keepattributes *Annotation*
--keep class com.kampplus.hava.model.** { *; }
--keep class com.kampplus.hava.data.CitySearchResponse { *; }
--keep class com.kampplus.hava.data.ForecastResponse { *; }
--keep class com.kampplus.hava.data.CurrentResponse { *; }
--keep class com.kampplus.hava.data.HourlyResponse { *; }
--keep class com.kampplus.hava.data.DailyResponse { *; }
+-keep class com.nurdan.hava.model.** { *; }
+-keep class com.nurdan.hava.data.CitySearchResponse { *; }
+-keep class com.nurdan.hava.data.ForecastResponse { *; }
+-keep class com.nurdan.hava.data.CurrentResponse { *; }
+-keep class com.nurdan.hava.data.HourlyResponse { *; }
+-keep class com.nurdan.hava.data.DailyResponse { *; }
 
 # @SerializedName ile isaretlenmis alanlar hicbir kosulda yeniden adlandirilmamali.
 -keepclassmembers,allowobfuscation class * {
@@ -24,8 +24,8 @@
 
 # --- Retrofit ---
 # Servis arayuzleri yansima ile uygulanir.
--keep,allowobfuscation interface com.kampplus.hava.data.CityApi
--keep,allowobfuscation interface com.kampplus.hava.data.ForecastApi
+-keep,allowobfuscation interface com.nurdan.hava.data.CityApi
+-keep,allowobfuscation interface com.nurdan.hava.data.ForecastApi
 -keepattributes RuntimeVisibleAnnotations,RuntimeVisibleParameterAnnotations
 -keepclassmembers,allowshrinking,allowobfuscation interface * {
   @retrofit2.http.* <methods>;

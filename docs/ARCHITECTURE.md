@@ -34,7 +34,7 @@ Retrofit → Repository (suspend, withContext(IO)) → ViewModel (try/catch → 
 
 1. Kullanıcı arama kutusuna yazar → `onQueryChange` → `_query.value` güncellenir.
 2. Enter'a basar → `search()` → `viewModelScope.launch` içinde coroutine başlar.
-3. `_uiState.value = LoadState.Loading` → ekranda Shimmer görünür.
+3. `_uiState.value = LoadState.Loading` → ekranda iskelet görünür.
 4. `repository.search(query)` askıya alınır; ana thread serbest kalır.
 5. Cevap gelir → liste boşsa `Empty`, doluysa `Success`; hata olursa `catch` → `Error`.
 6. `collectAsStateWithLifecycle` yeni değeri okur, Compose ekranı yeniden çizer.
@@ -60,7 +60,7 @@ Her ekran dört dalın tamamını karşılar:
 
 | Durum | Liste ekranı | Tahmin ekranı |
 |---|---|---|
-| `Loading` | `ShimmerList` | `CircularProgressIndicator` |
+| `Loading` | `SkeletonList` | `CircularProgressIndicator` |
 | `Success` | `LazyColumn` + `CityCard` | Başlık + saatlik + günlük |
 | `Empty` | "Şehir bulunamadı" + öneri | "Bu şehir için tahmin bulunamadı." |
 | `Error` | Mesaj + "Tekrar dene" | Mesaj + "Tekrar dene" |
