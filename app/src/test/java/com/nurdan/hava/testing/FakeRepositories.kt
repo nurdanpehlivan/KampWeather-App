@@ -1,11 +1,15 @@
 package com.nurdan.hava.testing
 
 import com.nurdan.hava.data.CityRepository
+import com.nurdan.hava.data.LocationRepository
+import com.nurdan.hava.data.SavedCitiesRepository
 import com.nurdan.hava.data.WeatherRepository
 import com.nurdan.hava.model.City
 import com.nurdan.hava.model.CurrentWeather
 import com.nurdan.hava.model.Forecast
 import java.time.LocalDateTime
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 
 /**
  * Testlerde gerçek repository yerine kullanılan sahteler.
@@ -77,3 +81,27 @@ fun sampleForecast() = Forecast(
     hourly = emptyList(),
     daily = emptyList()
 )
+
+/** Bellekte tutulan favoriler; DataStore yerine. */
+class FakeSavedCitiesRepository : SavedCitiesRepository {
+    private val state = MutableStateFlow<List<City>>(emptyList())
+    override val favorites: Flow<List<City>> = state
+
+    var lastViewed: City? = null
+        private set
+
+    override suspend fun toggleFavorite(city: City) {
+        state.value = if (state.value.any { it.id == city.id }) state.value.filterNot { it.id == city.id } else state.value + city
+    }
+
+    override suspend fun setLastViewed(city: City) {
+        lastViewed = city
+    }
+
+    override suspend fun widgetCity(): City? = state.value.firstOrNull() ?: lastViewed
+}
+
+/** @param result Konum isteğinde dönecek şehir; `null` ise konum bulunamamış sayılır. */
+class FakeLocationRepository(var result: City? = null) : LocationRepository {
+    override suspend fun currentCity(): City? = result
+}

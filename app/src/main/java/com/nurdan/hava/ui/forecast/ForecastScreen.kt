@@ -51,10 +51,14 @@ import com.nurdan.hava.model.CurrentWeather
 import com.nurdan.hava.model.DailyForecast
 import com.nurdan.hava.model.Forecast
 import com.nurdan.hava.model.HourlyForecast
+import com.nurdan.hava.model.MascotMood
+import com.nurdan.hava.model.RainAlert
+import com.nurdan.hava.model.SunPath
 import com.nurdan.hava.model.WeatherCondition
 import com.nurdan.hava.ui.LoadState
 import com.nurdan.hava.ui.component.EmptyView
 import com.nurdan.hava.ui.component.ErrorView
+import com.nurdan.hava.ui.mascot.CloudMascot
 import com.nurdan.hava.ui.theme.HavaTheme
 import com.nurdan.hava.ui.theme.onSky
 import com.nurdan.hava.ui.theme.skyBrush
@@ -109,7 +113,7 @@ fun ForecastScreen(
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     when (uiState) {
                         LoadState.Loading -> CircularProgressIndicator(strokeCap = StrokeCap.Round)
-                        LoadState.Empty -> EmptyView(title = stringResource(R.string.detail_empty), symbol = "🛰️")
+                        LoadState.Empty -> EmptyView(title = stringResource(R.string.detail_empty))
                         is LoadState.Error -> ErrorView(message = uiState.message, onRetry = onRetry)
                         is LoadState.Success -> Unit
                     }
@@ -163,7 +167,15 @@ private fun ForecastContent(cityName: String, subtitle: String, forecast: Foreca
             today = forecast.daily.firstOrNull(),
             onBack = onBack
         )
+        RainAlert.find(forecast.hourly, forecast.current.observedAt)?.let {
+            RainBanner(alert = it, modifier = Modifier.padding(horizontal = 20.dp))
+        }
         MetricTiles(current = forecast.current, modifier = Modifier.padding(horizontal = 20.dp))
+        forecast.daily.firstOrNull()?.let { today ->
+            SunPath.of(forecast.current.observedAt, today.sunrise, today.sunset)?.let {
+                SunArcCard(sun = it, modifier = Modifier.padding(horizontal = 20.dp))
+            }
+        }
         SectionLabel(stringResource(R.string.detail_hourly))
         HourlyColumns(hours = forecast.hourly)
         SectionLabel(stringResource(R.string.detail_daily))
@@ -197,15 +209,28 @@ private fun SkyHeader(cityName: String, subtitle: String, current: CurrentWeathe
                     color = ink,
                     modifier = Modifier.weight(1f)
                 )
-                Text(text = condition.emoji, style = MaterialTheme.typography.displayMedium)
+                CloudMascot(mood = MascotMood.from(condition, night), size = 128.dp)
             }
-            Text(text = condition.label, style = MaterialTheme.typography.titleLarge, color = ink)
+            Text(text = "${condition.emoji}  ${condition.label}", style = MaterialTheme.typography.titleLarge, color = ink)
             today?.let {
                 Text(
                     text = "En yüksek ${degrees(it.maxTemperatureC)}  ·  En düşük ${degrees(it.minTemperatureC)}",
                     style = MaterialTheme.typography.labelLarge,
                     color = ink.copy(alpha = 0.85f),
                     modifier = Modifier.padding(top = 6.dp)
+                )
+            }
+            // Maskotun konuşma balonu
+            Surface(
+                shape = RoundedCornerShape(topStart = 4.dp, topEnd = 18.dp, bottomStart = 18.dp, bottomEnd = 18.dp),
+                color = ink.copy(alpha = 0.16f),
+                modifier = Modifier.padding(top = 14.dp)
+            ) {
+                Text(
+                    text = MascotMood.from(condition, night).line,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = ink,
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
                 )
             }
         }
@@ -420,7 +445,7 @@ private fun previewForecast(code: Int, hour: Int) = Forecast(
             time = LocalDateTime.now().plusHours(it.toLong()),
             temperatureC = 14.0 + (it % 6) * 1.5,
             weatherCode = if (it < 4) code else 3,
-            precipitationProbability = it * 5
+            precipitationProbability = it * 12
         )
     },
     daily = List(7) {
@@ -429,7 +454,9 @@ private fun previewForecast(code: Int, hour: Int) = Forecast(
             minTemperatureC = 8.0 + it,
             maxTemperatureC = 17.0 + (it % 3) * 2,
             weatherCode = listOf(0, 2, 61, 3, 80, 0, 1)[it],
-            precipitationProbability = listOf(0, 10, 70, 20, 55, 0, 5)[it]
+            precipitationProbability = listOf(0, 10, 70, 20, 55, 0, 5)[it],
+            sunrise = LocalDateTime.of(2026, 10, 26, 7, 12).plusDays(it.toLong()),
+            sunset = LocalDateTime.of(2026, 10, 26, 18, 4).plusDays(it.toLong())
         )
     }
 )

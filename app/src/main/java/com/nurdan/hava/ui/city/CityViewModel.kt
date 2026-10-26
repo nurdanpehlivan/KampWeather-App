@@ -4,14 +4,18 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.gson.JsonSyntaxException
+import com.nurdan.hava.AppGraph
 import com.nurdan.hava.data.CityRepository
+import com.nurdan.hava.data.LocationRepository
 import com.nurdan.hava.data.OpenMeteoCityRepository
+import com.nurdan.hava.data.SavedCitiesRepository
 import com.nurdan.hava.model.City
 import com.nurdan.hava.ui.LoadState
 import java.io.IOException
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.debounce
@@ -19,6 +23,7 @@ import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
 
@@ -33,7 +38,9 @@ import retrofit2.HttpException
  */
 @OptIn(FlowPreview::class)
 class CityViewModel(
-    private val repository: CityRepository = OpenMeteoCityRepository()
+    private val repository: CityRepository = OpenMeteoCityRepository(),
+    private val savedCities: SavedCitiesRepository = AppGraph.savedCities,
+    private val locationRepository: LocationRepository = AppGraph.location
 ) : ViewModel() {
 
     private val _query = MutableStateFlow(INITIAL_QUERY)
@@ -45,6 +52,15 @@ class CityViewModel(
     /** En son dokunulan şehir; listede vurgulanır. */
     private val _selectedCityId = MutableStateFlow<Long?>(null)
     val selectedCityId: StateFlow<Long?> = _selectedCityId.asStateFlow()
+
+    /** Favori şehirler; uygulama kapansa da DataStore'da saklanır. */
+    val favorites: StateFlow<List<City>> = savedCities.favorites
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    private val _location = MutableStateFlow<LocationState>(LocationState.Idle)
+
+    /** "Konumum" düğmesinin durumu. */
+    val location: StateFlow<LocationState> = _location.asStateFlow()
 
     private var searchJob: Job? = null
 
@@ -67,6 +83,25 @@ class CityViewModel(
     fun onCitySelected(city: City) {
         Log.d(CLICK_TAG, "Tıklandı: ${city.name}")
         _selectedCityId.value = city.id
+        viewModelScope.launch { savedCities.setLastViewed(city) }
+    }
+
+    fun onToggleFavorite(city: City) {
+        viewModelScope.launch { savedCities.toggleFavorite(city) }
+    }
+
+    /** Konum izni verildikten sonra çağrılır. */
+    fun onLocate() {
+        if (_location.value == LocationState.Searching) return
+        viewModelScope.launch {
+            _location.value = LocationState.Searching
+            _location.value = locationRepository.currentCity()?.let { LocationState.Found(it) } ?: LocationState.Failed
+        }
+    }
+
+    /** Ekran sonucu işledikten (gezinme, uyarı) sonra durumu sıfırlar. */
+    fun onLocationHandled() {
+        _location.value = LocationState.Idle
     }
 
     /**
@@ -110,4 +145,12 @@ class CityViewModel(
         /** Bundan kısa metinlerle otomatik arama yapılmaz. */
         const val MIN_QUERY_LENGTH = 2
     }
+}
+
+/** "Konumum" düğmesinin dört hâli. */
+sealed interface LocationState {
+    data object Idle : LocationState
+    data object Searching : LocationState
+    data class Found(val city: City) : LocationState
+    data object Failed : LocationState
 }

@@ -1,11 +1,14 @@
 package com.nurdan.hava.ui.city
 
 import com.nurdan.hava.testing.FakeCityRepository
+import com.nurdan.hava.testing.FakeLocationRepository
+import com.nurdan.hava.testing.FakeSavedCitiesRepository
 import com.nurdan.hava.testing.MainDispatcherRule
 import com.nurdan.hava.testing.sampleCity
 import com.nurdan.hava.ui.LoadState
 import java.io.IOException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import okhttp3.MediaType.Companion.toMediaType
@@ -30,8 +33,10 @@ class CityViewModelTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     private val repository = FakeCityRepository()
+    private val savedCities = FakeSavedCitiesRepository()
+    private val location = FakeLocationRepository()
 
-    private fun createViewModel() = CityViewModel(repository)
+    private fun createViewModel() = CityViewModel(repository, savedCities, location)
 
     @Test
     fun `baslangicta Loading gosterilir`() = runTest {
@@ -170,5 +175,59 @@ class CityViewModelTest {
 
         assertTrue(viewModel.uiState.value is LoadState.Success)
         assertEquals(2, repository.callCount)
+    }
+
+    @Test
+    fun `sehre dokununca son bakilan olarak kaydedilir`() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.onCitySelected(sampleCity(name = "Rize"))
+        advanceUntilIdle()
+
+        assertEquals("Rize", savedCities.lastViewed?.name)
+    }
+
+    @Test
+    fun `favori eklenir ve ikinci dokunusta cikarilir`() = runTest {
+        val viewModel = createViewModel()
+        // stateIn(WhileSubscribed) yalnızca dinleyen varken güncellenir.
+        backgroundScope.launch { viewModel.favorites.collect {} }
+        advanceUntilIdle()
+
+        viewModel.onToggleFavorite(sampleCity())
+        advanceUntilIdle()
+        assertEquals(listOf(sampleCity()), viewModel.favorites.value)
+
+        viewModel.onToggleFavorite(sampleCity())
+        advanceUntilIdle()
+        assertTrue(viewModel.favorites.value.isEmpty())
+    }
+
+    @Test
+    fun `konum bulununca Found durumuna gecilir`() = runTest {
+        location.result = sampleCity(id = -1L, name = "Çankaya")
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.onLocate()
+        advanceUntilIdle()
+
+        assertEquals(LocationState.Found(sampleCity(id = -1L, name = "Çankaya")), viewModel.location.value)
+
+        viewModel.onLocationHandled()
+        assertEquals(LocationState.Idle, viewModel.location.value)
+    }
+
+    @Test
+    fun `konum alinamazsa Failed durumuna gecilir`() = runTest {
+        location.result = null
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.onLocate()
+        advanceUntilIdle()
+
+        assertEquals(LocationState.Failed, viewModel.location.value)
     }
 }

@@ -1,6 +1,7 @@
 package com.nurdan.hava.ui.city
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -9,10 +10,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -20,6 +22,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -39,7 +42,14 @@ import kotlin.math.abs
  * sağda koordinat ve ok. Seçili şehir mercan kenarlık ve açık zeminle vurgulanır.
  */
 @Composable
-fun CityCard(city: City, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun CityCard(
+    city: City,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    isFavorite: Boolean = false,
+    onToggleFavorite: () -> Unit = {}
+) {
     val container by animateColorAsState(
         if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
         label = "cityCardContainer"
@@ -78,21 +88,24 @@ fun CityCard(city: City, selected: Boolean, onClick: () -> Unit, modifier: Modif
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-            }
-            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Surface(shape = CircleShape, color = MaterialTheme.colorScheme.background) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                        contentDescription = null,
-                        modifier = Modifier.padding(6.dp).size(16.dp),
-                        tint = MaterialTheme.colorScheme.onSurface
-                    )
-                }
                 Text(
                     text = coordinates(city),
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                 )
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                val heartScale by animateFloatAsState(if (isFavorite) 1.15f else 1f, label = "heartScale")
+                IconButton(onClick = onToggleFavorite, modifier = Modifier.size(36.dp)) {
+                    Icon(
+                        imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                        contentDescription = stringResource(
+                            if (isFavorite) R.string.action_favorite_remove else R.string.action_favorite_add
+                        ),
+                        modifier = Modifier.scale(heartScale),
+                        tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }
@@ -141,7 +154,8 @@ private fun CityCardPreview() {
             CityCard(
                 city = City(323786, "Ankara", 39.91987, 32.85427, "TR", "Türkiye", "Ankara"),
                 selected = true,
-                onClick = {}
+                onClick = {},
+                isFavorite = true
             )
             CityCard(
                 city = City(2950159, "Berlin", 52.52437, 13.41053, "DE", "Almanya", "Berlin"),

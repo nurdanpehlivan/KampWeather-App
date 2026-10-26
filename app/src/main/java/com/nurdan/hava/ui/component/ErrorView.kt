@@ -16,6 +16,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.nurdan.hava.R
+import com.nurdan.hava.model.MascotMood
 import com.nurdan.hava.ui.theme.HavaTheme
 
 /**
@@ -27,7 +28,7 @@ import com.nurdan.hava.ui.theme.HavaTheme
 @Composable
 fun ErrorView(message: String, modifier: Modifier = Modifier, onRetry: (() -> Unit)? = null) {
     StatusIllustration(
-        symbol = "🌩️",
+        mood = MascotMood.UPSET,
         circleColor = MaterialTheme.colorScheme.primaryContainer,
         title = "Bir aksilik oldu",
         message = message,

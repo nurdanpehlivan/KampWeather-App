@@ -7,7 +7,11 @@
     -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- "Konumum" düğmesi için. Şehir düzeyinde yaklaşık konum yeterli. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
     <application
+        android:name=".HavaApplication"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -28,6 +32,19 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Ana ekran widget'ı: seçili şehrin anlık havası. -->
+        <receiver
+            android:name=".ui.widget.HavaWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/hava_widget_info" />
+        </receiver>
     </application>
 
 </manifest>

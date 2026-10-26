@@ -1,5 +1,9 @@
 package com.nurdan.hava.ui.city
-
+import android.Manifest
+import android.content.pm.PackageManager
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -17,13 +21,19 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -35,45 +45,89 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nurdan.hava.R
 import com.nurdan.hava.model.City
+import com.nurdan.hava.model.MascotMood
 import com.nurdan.hava.ui.LoadState
 import com.nurdan.hava.ui.component.EmptyView
 import com.nurdan.hava.ui.component.ErrorView
 import com.nurdan.hava.ui.component.SkeletonList
+import com.nurdan.hava.ui.mascot.CloudMascot
 import com.nurdan.hava.ui.theme.HavaTheme
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-/** ViewModel'i edinip state'i [CityScreen]'e aktaran bağlayıcı katman. */
+/**
+ * ViewModel'i edinip state'i [CityScreen]'e aktaran bağlayıcı katman.
+ * Konum izni ve konum sonucuna göre gezinme de burada yönetilir.
+ */
 @Composable
 fun CityRoute(onCityClick: (City) -> Unit, modifier: Modifier = Modifier, viewModel: CityViewModel = viewModel()) {
     val query by viewModel.query.collectAsStateWithLifecycle()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val selectedCityId by viewModel.selectedCityId.collectAsStateWithLifecycle()
+    val favorites by viewModel.favorites.collectAsStateWithLifecycle()
+    val locationState by viewModel.location.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+
+    val openCity: (City) -> Unit = { city ->
+        viewModel.onCitySelected(city)
+        onCityClick(city)
+    }
+
+    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) {
+            viewModel.onLocate()
+        } else {
+            Toast.makeText(context, R.string.location_denied, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // Konum bulununca o şehrin tahminine geç; bulunamazsa kısa bir uyarı göster.
+    LaunchedEffect(locationState) {
+        when (val state = locationState) {
+            is LocationState.Found -> {
+                openCity(state.city)
+                viewModel.onLocationHandled()
+            }
+            LocationState.Failed -> {
+                Toast.makeText(context, R.string.location_failed, Toast.LENGTH_LONG).show()
+                viewModel.onLocationHandled()
+            }
+            else -> Unit
+        }
+    }
 
     CityScreen(
         query = query,
         uiState = uiState,
         selectedCityId = selectedCityId,
+        favorites = favorites,
+        locating = locationState == LocationState.Searching,
         onQueryChange = viewModel::onQueryChange,
         onSearch = viewModel::search,
-        onCityClick = { city ->
-            viewModel.onCitySelected(city)
-            onCityClick(city)
+        onCityClick = openCity,
+        onToggleFavorite = viewModel::onToggleFavorite,
+        onLocateClick = {
+            val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) ==
+                PackageManager.PERMISSION_GRANTED
+            if (granted) viewModel.onLocate() else permissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
         },
         modifier = modifier
     )
@@ -92,7 +146,11 @@ fun CityScreen(
     onQueryChange: (String) -> Unit,
     onSearch: () -> Unit,
     onCityClick: (City) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    favorites: List<City> = emptyList(),
+    locating: Boolean = false,
+    onToggleFavorite: (City) -> Unit = {},
+    onLocateClick: () -> Unit = {}
 ) {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     Scaffold(
@@ -110,6 +168,7 @@ fun CityScreen(
                         )
                     }
                 },
+                actions = { CloudMascot(mood = MascotMood.SUNNY, size = 64.dp, modifier = Modifier.padding(end = 12.dp)) },
                 colors = TopAppBarDefaults.largeTopAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background,
                     scrolledContainerColor = MaterialTheme.colorScheme.background
@@ -129,6 +188,12 @@ fun CityScreen(
                 onSearch = onSearch,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
             )
+            QuickRow(
+                favorites = favorites,
+                locating = locating,
+                onLocateClick = onLocateClick,
+                onCityClick = onCityClick
+            )
             // Durumlar arasında sert geçiş yerine yumuşak bir solma.
             AnimatedContent(
                 targetState = uiState,
@@ -143,7 +208,9 @@ fun CityScreen(
                         is LoadState.Success -> CityList(
                             cities = state.data,
                             selectedCityId = selectedCityId,
-                            onCityClick = onCityClick
+                            favoriteIds = favorites.map { it.id }.toSet(),
+                            onCityClick = onCityClick,
+                            onToggleFavorite = onToggleFavorite
                         )
                         LoadState.Empty -> EmptyView(
                             title = stringResource(R.string.city_empty_title),
@@ -198,7 +265,14 @@ private fun SearchField(query: String, onQueryChange: (String) -> Unit, onSearch
 
 /** Sonuç sayısı başlığı + şehir kartları. */
 @Composable
-private fun CityList(cities: List<City>, selectedCityId: Long?, onCityClick: (City) -> Unit, modifier: Modifier = Modifier) {
+private fun CityList(
+    cities: List<City>,
+    selectedCityId: Long?,
+    favoriteIds: Set<Long>,
+    onCityClick: (City) -> Unit,
+    onToggleFavorite: (City) -> Unit,
+    modifier: Modifier = Modifier
+) {
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 32.dp),
@@ -225,7 +299,60 @@ private fun CityList(cities: List<City>, selectedCityId: Long?, onCityClick: (Ci
                 city = city,
                 selected = city.id == selectedCityId,
                 onClick = { onCityClick(city) },
+                isFavorite = city.id in favoriteIds,
+                onToggleFavorite = { onToggleFavorite(city) },
                 modifier = Modifier.animateItem()
+            )
+        }
+    }
+}
+
+/**
+ * Arama kutusunun altındaki yatay şerit: önce "Konumum", ardından favori şehirler.
+ * Tek dokunuşla tahmin ekranına geçilir.
+ */
+@Composable
+private fun QuickRow(favorites: List<City>, locating: Boolean, onLocateClick: () -> Unit, onCityClick: (City) -> Unit) {
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        item(key = "location") {
+            AssistChip(
+                onClick = onLocateClick,
+                enabled = !locating,
+                label = { Text(stringResource(if (locating) R.string.locating else R.string.my_location)) },
+                leadingIcon = {
+                    if (locating) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    } else {
+                        Icon(Icons.Filled.LocationOn, contentDescription = null, modifier = Modifier.size(18.dp))
+                    }
+                },
+                shape = CircleShape,
+                colors = AssistChipDefaults.assistChipColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    labelColor = MaterialTheme.colorScheme.onPrimary,
+                    leadingIconContentColor = MaterialTheme.colorScheme.onPrimary
+                ),
+                border = null
+            )
+        }
+        items(items = favorites, key = { "fav-${it.id}" }) { city ->
+            AssistChip(
+                onClick = { onCityClick(city) },
+                label = { Text(city.name) },
+                leadingIcon = {
+                    Icon(
+                        Icons.Filled.Favorite,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                },
+                shape = CircleShape,
+                colors = AssistChipDefaults.assistChipColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                border = null
             )
         }
     }

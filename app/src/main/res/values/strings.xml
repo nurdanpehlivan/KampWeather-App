@@ -25,4 +25,18 @@
     <string name="detail_empty">Bu şehir için tahmin bulunamadı.</string>
     <string name="today">Bugün</string>
     <string name="now">Şimdi</string>
+
+    <!-- Favoriler ve konum -->
+    <string name="favorites_title">Favorilerim</string>
+    <string name="my_location">Konumum</string>
+    <string name="locating">Konum aranıyor…</string>
+    <string name="location_failed">Konum alınamadı. Konum servisinin açık olduğundan emin ol.</string>
+    <string name="location_denied">Konumunu kullanmak için izin gerekli.</string>
+    <string name="action_favorite_add">Favorilere ekle</string>
+    <string name="action_favorite_remove">Favorilerden çıkar</string>
+
+    <!-- Widget -->
+    <string name="widget_label">Hava</string>
+    <string name="widget_description">Favori şehrinin anlık havası</string>
+    <string name="widget_empty">Bir şehri favorilere ekle</string>
 </resources>

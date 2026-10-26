@@ -18,7 +18,13 @@ tahminini gösterir. Yükleniyor / veri / boş / hata durumlarının hepsi ele a
 | Tahmin ekranı | Havaya ve saate göre renklenen gökyüzü bloğu, ölçüm kutuları, sıcaklık çubuklu saatlik sütunlar, haftalık sıcaklık aralığı çubukları |
 | Yükleniyor | Dalga gibi "nefes alan" iskelet kartlar |
 | Ağ | OkHttp günlükçüsü: debug derlemesinde istekler Logcat'te (`okhttp.OkHttpClient`) |
-| Testler | Yazdıkça arama, seçili şehir ve plaka eşlemesi için yeni birim testleri |
+| Maskot | Havaya göre kılık değiştiren bulut: güneşte gözlük, yağmurda şemsiye, karda atkı, fırtınada endişeli; göz kırpar ve süzülür. Tamamen Canvas ile çizildi |
+| Favoriler | Kalple favoriye ekle; favoriler DataStore'da saklanır ve arama kutusunun altında tek dokunuşla açılır |
+| Konumum | İzin isteyip telefonun bulunduğu şehrin tahminini açar (Play Services gerektirmez) |
+| Yağmur uyarısı | Önümüzdeki 3 saatte yağış olasılığı %50'yi geçerse "X saat içinde yağmur bekleniyor" bandı |
+| Gün doğumu yayı | Güneşin doğuştan batışa ilerleyişi, gün ışığı süresi |
+| Widget | Ana ekranda ilk favori şehrin (yoksa son bakılan şehrin) anlık havası, 30 dakikada bir tazelenir |
+| Testler | Yazdıkça arama, favoriler, konum, plaka, yağmur uyarısı, gün yolu ve maskot için birim testleri (toplam 53) |
 
 ## Kamp kitapçığı kontrol listesi
 

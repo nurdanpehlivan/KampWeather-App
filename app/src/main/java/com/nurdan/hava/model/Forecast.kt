@@ -36,11 +36,16 @@ data class HourlyForecast(
     val precipitationProbability: Int? = null
 )
 
-/** Tek bir günlük tahmin satırı: o günün en düşük ve en yüksek sıcaklığı. */
+/**
+ * Tek bir günlük tahmin satırı: o günün en düşük ve en yüksek sıcaklığı.
+ * Gün doğumu ve batımı şehrin yerel saatindedir; servis göndermezse `null`.
+ */
 data class DailyForecast(
     val date: LocalDate,
     val minTemperatureC: Double,
     val maxTemperatureC: Double,
     val weatherCode: Int,
-    val precipitationProbability: Int? = null
+    val precipitationProbability: Int? = null,
+    val sunrise: LocalDateTime? = null,
+    val sunset: LocalDateTime? = null
 )

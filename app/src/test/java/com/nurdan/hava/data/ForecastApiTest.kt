@@ -86,6 +86,10 @@ class ForecastApiTest {
         assertEquals(LocalDate.parse("2026-09-25"), daily[1].date)
         assertEquals(6.2, daily[1].minTemperatureC, 0.01)
         assertEquals(20.1, daily[1].maxTemperatureC, 0.01)
+        // Gün doğumu/batımı gelirse okunur, gelmezse satır yine de korunur.
+        assertEquals(LocalDateTime.parse("2026-09-24T06:52"), daily[0].sunrise)
+        assertEquals(LocalDateTime.parse("2026-09-24T19:01"), daily[0].sunset)
+        assertEquals(null, daily[1].sunrise)
     }
 
     @Test

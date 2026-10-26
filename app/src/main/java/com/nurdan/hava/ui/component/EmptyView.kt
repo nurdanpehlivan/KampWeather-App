@@ -16,16 +16,18 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.nurdan.hava.model.MascotMood
+import com.nurdan.hava.ui.mascot.CloudMascot
 import com.nurdan.hava.ui.theme.HavaTheme
 
 /**
- * "Sonuç yok" görünümü: dürbünlü bir daire, serif başlık ve yönlendirici bir cümle.
+ * "Sonuç yok" görünümü: şaşkın bulut maskot, serif başlık ve yönlendirici bir cümle.
  * Kullanıcı uygulamanın bozulmadığını, yalnızca sonucun olmadığını anlar.
  */
 @Composable
-fun EmptyView(title: String, modifier: Modifier = Modifier, message: String? = null, symbol: String = "🔭") {
+fun EmptyView(title: String, modifier: Modifier = Modifier, message: String? = null, mood: MascotMood = MascotMood.CONFUSED) {
     StatusIllustration(
-        symbol = symbol,
+        mood = mood,
         circleColor = MaterialTheme.colorScheme.secondaryContainer,
         title = title,
         message = message,
@@ -36,7 +38,7 @@ fun EmptyView(title: String, modifier: Modifier = Modifier, message: String? = n
 /** Boş ve hata görünümlerinin ortak iskeleti; alt kısma isteğe bağlı bir eylem eklenir. */
 @Composable
 internal fun StatusIllustration(
-    symbol: String,
+    mood: MascotMood,
     circleColor: Color,
     title: String,
     message: String?,
@@ -48,9 +50,9 @@ internal fun StatusIllustration(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Surface(modifier = Modifier.size(112.dp), shape = CircleShape, color = circleColor) {
+        Surface(modifier = Modifier.size(132.dp), shape = CircleShape, color = circleColor) {
             Box(contentAlignment = Alignment.Center) {
-                Text(text = symbol, style = MaterialTheme.typography.displayMedium)
+                CloudMascot(mood = mood, size = 96.dp)
             }
         }
         Text(
